@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Cycling Calorie Calculator - Test Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                🧪 Test Suite
+            </h1>
+            <p class="text-xl text-gray-600">
+                Cycling Calorie Calculator - Development & Testing Tools
+            </p>
+            <div class="mt-4">
+                <a href="../" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-home mr-2"></i>
+                    Back to Main App
+                </a>
+            </div>
+        </header>
+
+        <div class="grid md:grid-cols-2 gap-8 mb-12">
+            <!-- HTML Interactive Tests -->
+            <section class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-globe text-blue-600 mr-3"></i>
+                    Interactive Tests
+                </h2>
+                <div class="space-y-4">
+                    <div class="border-l-4 border-blue-400 pl-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <a href="test-upload.html" class="hover:text-blue-600 transition-colors">
+                                📤 File Upload Test
+                            </a>
+                        </h3>
+                        <p class="text-sm text-gray-600">Test GPX file upload functionality and HTMX integration</p>
+                    </div>
+                    
+                    <div class="border-l-4 border-green-400 pl-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <a href="test-duplicate-prevention.html" class="hover:text-blue-600 transition-colors">
+                                🔄 Duplicate Prevention Test
+                            </a>
+                        </h3>
+                        <p class="text-sm text-gray-600">Test duplicate file detection system</p>
+                    </div>
+                    
+                    <div class="border-l-4 border-purple-400 pl-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <a href="test-chart-data.html" class="hover:text-blue-600 transition-colors">
+                                📊 Chart Data Test
+                            </a>
+                        </h3>
+                        <p class="text-sm text-gray-600">Test dashboard API and chart data loading</p>
+                    </div>
+                    
+                    <div class="border-l-4 border-yellow-400 pl-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <a href="test-chart.html" class="hover:text-blue-600 transition-colors">
+                                📈 Chart Rendering Test
+                            </a>
+                        </h3>
+                        <p class="text-sm text-gray-600">Test Chart.js integration and visualization</p>
+                    </div>
+                    
+                    <div class="border-l-4 border-indigo-400 pl-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <a href="test-location-search.html" class="hover:text-blue-600 transition-colors">
+                                🌍 Location Search Test
+                            </a>
+                        </h3>
+                        <p class="text-sm text-gray-600">Test OpenWeatherMap geocoding and location input</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- JavaScript Unit Tests -->
+            <section class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-terminal text-green-600 mr-3"></i>
+                    Command Line Tests
+                </h2>
+                <div class="space-y-4">
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">💾 Database Connection</h3>
+                        <code class="text-sm text-gray-600">node test/test-db-connection.js</code>
+                        <p class="text-xs text-gray-500 mt-1">Test SQLite connectivity and CRUD operations</p>
+                    </div>
+                    
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">🗂️ GPX Structure</h3>
+                        <code class="text-sm text-gray-600">node test/test-gpx-structure.js sample.gpx</code>
+                        <p class="text-xs text-gray-500 mt-1">Test GPX file parsing and validation</p>
+                    </div>
+                    
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">⚡ Speed Calculation</h3>
+                        <code class="text-sm text-gray-600">node test/test-speed-calculation.js</code>
+                        <p class="text-xs text-gray-500 mt-1">Test GPS coordinate calculations and speed algorithms</p>
+                    </div>
+                    
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">⚙️ Configuration</h3>
+                        <code class="text-sm text-gray-600">node test/test_config.js</code>
+                        <p class="text-xs text-gray-500 mt-1">Test configuration system and database settings</p>
+                    </div>
+                    
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">🎛️ CLI Arguments</h3>
+                        <code class="text-sm text-gray-600">node test/test_new_args.js --help</code>
+                        <p class="text-xs text-gray-500 mt-1">Test command-line argument parsing and validation</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Quick Start Guide -->
+        <section class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-rocket text-red-600 mr-3"></i>
+                Quick Start Guide
+            </h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold text-gray-800 mb-3">🌐 Interactive Tests</h3>
+                    <ol class="text-sm text-gray-600 space-y-2">
+                        <li>1. Make sure the server is running: <code class="bg-gray-100 px-2 py-1 rounded">node index-new.js --web</code></li>
+                        <li>2. Click on any test link above to open in new tab</li>
+                        <li>3. Follow on-screen instructions for each test</li>
+                        <li>4. Check browser console for detailed logs</li>
+                    </ol>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-800 mb-3">💻 Command Line Tests</h3>
+                    <ol class="text-sm text-gray-600 space-y-2">
+                        <li>1. Open terminal in project root directory</li>
+                        <li>2. Run individual test commands shown above</li>
+                        <li>3. Check terminal output for results</li>
+                        <li>4. Some tests may require sample GPX files</li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+
+        <!-- Test Status -->
+        <section class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-info-circle text-blue-600 mr-3"></i>
+                Test Information
+            </h2>
+            <div class="grid md:grid-cols-3 gap-4 text-center">
+                <div class="bg-blue-50 rounded-lg p-4">
+                    <div class="text-3xl font-bold text-blue-600">10</div>
+                    <div class="text-sm text-gray-600">Total Test Files</div>
+                </div>
+                <div class="bg-green-50 rounded-lg p-4">
+                    <div class="text-3xl font-bold text-green-600">5</div>
+                    <div class="text-sm text-gray-600">Interactive Tests</div>
+                </div>
+                <div class="bg-purple-50 rounded-lg p-4">
+                    <div class="text-3xl font-bold text-purple-600">5</div>
+                    <div class="text-sm text-gray-600">Unit Tests</div>
+                </div>
+            </div>
+            
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
+                <div class="flex items-start">
+                    <i class="fas fa-lightbulb text-yellow-600 mt-1 mr-3"></i>
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-1">💡 Tips</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• Some tests require OpenWeatherMap API key configuration</li>
+                            <li>• Sample GPX files can be found in project documentation</li>
+                            <li>• Check <code>test/README.md</code> for detailed test documentation</li>
+                            <li>• Use browser DevTools to inspect network requests and console logs</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="text-center mt-12 text-gray-500 text-sm">
+            <p>🚴‍♂️ Cycling Calorie Calculator Test Suite - Version 2.0</p>
+            <p class="mt-2">
+                <a href="https://github.com/HaikuZen/cycling-calories-calculator" class="hover:text-blue-600 transition-colors">
+                    <i class="fab fa-github mr-1"></i>
+                    View on GitHub
+                </a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

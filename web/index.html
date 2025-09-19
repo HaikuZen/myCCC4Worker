@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycling Calories Calculator - Dashboard</title>
+    
+    <!-- Tailwind CSS with DaisyUI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    
+    <!-- HTMX 2.x -->
+   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js" integrity="sha384-ZBXiYtYQ6hJ2Y0ZNoYuI+Nq5MqWBr+chMrS/RkXpNzQCApHEhOt2aY8EJgqwHLkJ" crossorigin="anonymous"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <style>
+        .drag-over {
+            border-color: hsl(var(--p)) !important;
+            background-color: hsl(var(--p) / 0.1) !important;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    <!-- Navigation -->
+    <div class="navbar bg-base-100 shadow-lg">
+        <div class="navbar-start">
+            <div class="dropdown">
+                <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+                    <i class="fas fa-bars text-xl"></i>
+                </div>
+                <ul tabindex="0" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow">
+                    <li><a href="#dashboard"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a></li>
+                    <li><a href="#upload"><i class="fas fa-upload mr-2"></i>Upload GPX</a></li>
+                    <li><a href="#stats"><i class="fas fa-chart-line mr-2"></i>Statistics</a></li>
+                    <li><a href="#weather"><i class="fas fa-cloud-sun mr-2"></i>Weather</a></li>
+                    <li><a href="#configuration"><i class="fas fa-cog mr-2"></i>Configuration</a></li>
+                    <li><a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a></li>
+                </ul>
+            </div>
+            <a class="btn btn-ghost text-xl">
+                <i class="fas fa-bicycle mr-2"></i>
+                Cycling Dashboard
+            </a>
+        </div>
+        <div class="navbar-center hidden lg:flex">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="#dashboard"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a></li>
+                <li><a href="#upload"><i class="fas fa-upload mr-2"></i>Upload GPX</a></li>
+                <li><a href="#stats"><i class="fas fa-chart-line mr-2"></i>Statistics</a></li>
+                <li><a href="#weather"><i class="fas fa-cloud-sun mr-2"></i>Weather</a></li>
+                <li><a href="#configuration"><i class="fas fa-cog mr-2"></i>Configuration</a></li>
+                <li><a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a></li>
+            </ul>
+        </div>
+        <div class="navbar-end">
+            <div class="dropdown dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-ghost">
+                    <i class="fas fa-palette"></i>
+                </div>
+                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-2xl">
+                    <li><a onclick="setTheme('light')">☀️ Light</a></li>
+                    <li><a onclick="setTheme('dark')">🌙 Dark</a></li>
+                    <li><a onclick="setTheme('cupcake')">🧁 Cupcake</a></li>
+                    <li><a onclick="setTheme('forest')">🌲 Forest</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto p-4 max-w-7xl">
+        
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="card-title text-3xl">
+                            <i class="fas fa-tachometer-alt text-primary"></i>
+                            Dashboard
+                        </h2>
+                        <div class="flex gap-2">
+                            <button id="refreshDashboard" class="btn btn-outline btn-sm">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Refresh
+                            </button>
+                            <div class="badge badge-outline" id="dbStatus">
+                                <i class="fas fa-database mr-1"></i>
+                                <span id="dbStatusText">Connecting...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Global Statistics Cards -->
+                    <div id="global-stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="stat bg-primary/10 rounded-lg">
+                            <div class="stat-figure text-primary">
+                                <i class="fas fa-fire text-2xl"></i>
+                            </div>
+                            <div class="stat-title">Total Calories</div>
+                            <div class="stat-value text-primary" id="globalTotalCalories">
+                                <span class="loading loading-spinner loading-sm"></span>
+                            </div>
+                            <div class="stat-desc">All time</div>
+                        </div>
+                        
+                        <div class="stat bg-secondary/10 rounded-lg">
+                            <div class="stat-figure text-secondary">
+                                <i class="fas fa-route text-2xl"></i>
+                            </div>
+                            <div class="stat-title">Total Distance</div>
+                            <div class="stat-value text-secondary" id="globalTotalDistance">
+                                <span class="loading loading-spinner loading-sm"></span>
+                            </div>
+                            <div class="stat-desc">Kilometers</div>
+                        </div>
+                        
+                        <div class="stat bg-accent/10 rounded-lg">
+                            <div class="stat-figure text-accent">
+                                <i class="fas fa-bicycle text-2xl"></i>
+                            </div>
+                            <div class="stat-title">Total Rides</div>
+                            <div class="stat-value text-accent" id="globalTotalRides">
+                                <span class="loading loading-spinner loading-sm"></span>
+                            </div>
+                            <div class="stat-desc">Completed</div>
+                        </div>
+                        
+                        <div class="stat bg-info/10 rounded-lg">
+                            <div class="stat-figure text-info">
+                                <i class="fas fa-clock text-2xl"></i>
+                            </div>
+                            <div class="stat-title">Total Time</div>
+                            <div class="stat-value text-info" id="globalTotalTime">
+                                <span class="loading loading-spinner loading-sm"></span>
+                            </div>
+                            <div class="stat-desc">Hours</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dashboard Content -->
+                    <div id="dashboard-content">
+                        <div class="text-center py-4">
+                            <span class="loading loading-spinner loading-lg text-primary"></span>
+                            <p class="mt-2 text-base-content/70">Loading dashboard data...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- GPX Upload Section -->
+        <section id="upload" class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-2xl mb-4">
+                        <i class="fas fa-upload text-primary"></i>
+                        Upload GPX File
+                    </h2>
+                    
+                    <!-- Upload Form -->
+                    <form id="gpxUploadForm" 
+                          hx-post="/upload" 
+                          hx-target="#upload-result"
+                          hx-indicator="#upload-loading"
+                          enctype="multipart/form-data"
+                          class="mb-4"
+                          hx-on::after-request="refreshDashboardData()">
+                        
+                        <div class="form-control w-full">
+                            <input type="file" 
+                                   name="gpxFile" 
+                                   id="gpxFile" 
+                                   accept=".gpx" 
+                                   class="hidden" 
+                                   required>
+                            <div id="dropZone" 
+                                 class="border-2 border-dashed border-base-300 rounded-lg p-8 text-center transition-colors duration-300 cursor-pointer hover:border-primary hover:bg-primary/10">
+                                <div id="dropZoneContent" class="space-y-4">
+                                    <i class="fas fa-cloud-upload-alt text-4xl text-base-content/50"></i>
+                                    <div>
+                                        <p class="text-lg font-semibold">Drop your GPX file here</p>
+                                        <p class="text-base-content/70">or click to browse</p>
+                                    </div>
+                                    <div class="text-sm text-base-content/50">
+                                        Supported format: .gpx (Max 10MB)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-4 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload mr-2"></i>
+                                Upload & Analyze
+                            </button>
+                            <button type="button" id="clearFile" class="btn btn-ghost">
+                                <i class="fas fa-trash mr-2"></i>
+                                Clear
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Upload Loading -->
+                    <div id="upload-loading" class="htmx-indicator">
+                        <div class="flex items-center justify-center p-4">
+                            <span class="loading loading-spinner loading-lg text-primary mr-4"></span>
+                            <span class="text-lg">Processing GPX file...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Result -->
+                    <div id="upload-result" class="mt-4">
+                        <!-- HTMX will populate this -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Period Range Selector -->
+        <section class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="card-title">
+                            <i class="fas fa-calendar-alt text-primary"></i>
+                            Analyze Period Range
+                        </h3>
+                        <div class="badge badge-info badge-sm">
+                            <i class="fas fa-database mr-1"></i>
+                            Database Query
+                        </div>
+                    </div>
+                    <form id="dateFilterForm" 
+                          hx-get="/filter-data" 
+                          hx-target="#stats-content" 
+                          hx-indicator="#filter-loading"
+                          class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Start Date</span>
+                            </label>
+                            <input type="date" 
+                                   name="startDate" 
+                                   id="startDate"
+                                   class="input input-bordered" 
+                                   onchange="checkAndSubmitDateRange()">
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">End Date</span>
+                            </label>
+                            <input type="date" 
+                                   name="endDate" 
+                                   id="endDate"
+                                   class="input input-bordered" 
+                                   onchange="checkAndSubmitDateRange()">
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Quick Select</span>
+                            </label>
+                            <select class="select select-bordered" 
+                                    id="quickSelect" 
+                                    onchange="setQuickRange(this.value)">
+                                <option value="">Custom Range</option>
+                                <option value="7">Last 7 Days</option>
+                                <option value="30">Last 30 Days</option>
+                                <option value="90">Last 3 Months</option>
+                                <option value="365">Last Year</option>
+                            </select>
+                        </div>
+                    </form>
+                    
+                    <div id="filter-loading" class="htmx-indicator mt-4">
+                        <span class="loading loading-spinner loading-md text-primary mr-2"></span>
+                        Filtering data...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistics Section -->
+        <section id="stats" class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-2xl mb-4">
+                        <i class="fas fa-chart-line text-primary"></i>
+                        Cycling Statistics
+                    </h2>
+                    
+                    <div id="stats-content">
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div class="stat bg-primary/10 rounded-lg">
+                                <div class="stat-figure text-primary">
+                                    <i class="fas fa-fire text-2xl"></i>
+                                </div>
+                                <div class="stat-title">Total Calories</div>
+                                <div class="stat-value text-primary" id="totalCalories">-</div>
+                                <div class="stat-desc">Burned this period</div>
+                            </div>
+                            
+                            <div class="stat bg-secondary/10 rounded-lg">
+                                <div class="stat-figure text-secondary">
+                                    <i class="fas fa-route text-2xl"></i>
+                                </div>
+                                <div class="stat-title">Total Distance</div>
+                                <div class="stat-value text-secondary" id="totalDistance">-</div>
+                                <div class="stat-desc">Kilometers covered</div>
+                            </div>
+                            
+                            <div class="stat bg-accent/10 rounded-lg">
+                                <div class="stat-figure text-accent">
+                                    <i class="fas fa-clock text-2xl"></i>
+                                </div>
+                                <div class="stat-title">Total Time</div>
+                                <div class="stat-value text-accent" id="totalTime">-</div>
+                                <div class="stat-desc">Hours of cycling</div>
+                            </div>
+                            
+                            <div class="stat bg-info/10 rounded-lg">
+                                <div class="stat-figure text-info">
+                                    <i class="fas fa-tachometer-alt text-2xl"></i>
+                                </div>
+                                <div class="stat-title">Avg Speed</div>
+                                <div class="stat-value text-info" id="avgSpeed">-</div>
+                                <div class="stat-desc">km/h average</div>
+                            </div>
+                        </div>
+
+                        <!-- Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Calories Chart -->
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Calories Burned Over Time</h3>
+                                    <div class="chart-container">
+                                        <canvas id="caloriesChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Distance Chart -->
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Distance Covered</h3>
+                                    <div class="chart-container">
+                                        <canvas id="distanceChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Speed Chart -->
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Speed Analysis</h3>
+                                    <div class="chart-container">
+                                        <canvas id="speedChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Elevation Chart -->
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Elevation Profile</h3>
+                                    <div class="chart-container">
+                                        <canvas id="elevationChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Weather Information Section -->
+        <section id="weather" class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="card-title text-2xl">
+                            <i class="fas fa-cloud-sun text-primary"></i>
+                            Weather Information
+                        </h2>
+                        <div class="flex items-center gap-2">
+                            <label class="label">
+                                <span class="label-text text-sm">Location:</span>
+                            </label>
+                            <div class="form-control relative">
+                                <input 
+                                    type="text" 
+                                    id="weatherLocationInput" 
+                                    class="input input-bordered input-sm w-full max-w-xs" 
+                                    placeholder="Enter city name..."
+                                    title="Enter a city name (e.g., Milan, London, New York)"
+                                />
+                                <div id="locationStatus" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-base-content/50">
+                                    <i class="fas fa-search"></i>
+                                </div>
+                            </div>
+                            <button id="refreshWeatherBtn" class="btn btn-outline btn-sm" title="Refresh weather data">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="weather-content">
+                        <!-- Current Weather -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                            <div class="col-span-1 lg:col-span-2">
+                                <div class="card bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                                    <div class="card-body">
+                                        <h3 class="card-title text-white">Current Conditions</h3>
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="text-4xl font-bold" id="currentTemp">--°C</div>
+                                                <div class="text-lg" id="currentCondition">--</div>
+                                                <div class="text-sm opacity-80" id="currentLocation">--</div>
+                                            </div>
+                                            <div class="text-6xl opacity-80">
+                                                <i id="currentIcon" class="fas fa-sun"></i>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
+                                            <div class="flex items-center">
+                                                <i class="fas fa-eye mr-2"></i>
+                                                <span>Visibility: <span id="visibility">--</span> km</span>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <i class="fas fa-tint mr-2"></i>
+                                                <span>Humidity: <span id="humidity">--%</span></span>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <i class="fas fa-wind mr-2"></i>
+                                                <span>Wind: <span id="windSpeed">--</span> km/h</span>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <i class="fas fa-compress-arrows-alt mr-2"></i>
+                                                <span>Pressure: <span id="pressure">--</span> hPa</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-span-1">
+                                <div class="card bg-base-50 h-full">
+                                    <div class="card-body">
+                                        <h3 class="card-title">Cycling Conditions</h3>
+                                        <div class="space-y-3">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-sm">Comfort Level</span>
+                                                <div class="badge badge-success" id="comfortLevel">Good</div>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-sm">UV Index</span>
+                                                <div class="badge badge-warning" id="uvIndex">--</div>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-sm">Rain Chance</span>
+                                                <div class="badge badge-info" id="rainChance">--%</div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <div class="text-xs text-base-content/70 mb-1">Recommended Gear:</div>
+                                                <div id="recommendedGear" class="text-sm">
+                                                    <div class="badge badge-outline badge-sm mr-1">Light Jacket</div>
+                                                    <div class="badge badge-outline badge-sm">Helmet</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weather Forecast -->
+                        <div class="mb-6">
+                            <h3 class="text-xl font-semibold mb-4">7-Day Forecast</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2" id="forecastContainer">
+                                <!-- Forecast cards will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Weather Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Temperature Trend</h3>
+                                    <div class="chart-container">
+                                        <canvas id="temperatureChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-base-50">
+                                <div class="card-body">
+                                    <h3 class="card-title">Wind & Precipitation</h3>
+                                    <div class="chart-container">
+                                        <canvas id="windChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuration Section -->
+        <section id="configuration" class="mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="card-title text-2xl">
+                            <i class="fas fa-cog text-primary"></i>
+                            Configuration
+                        </h2>
+                        <div class="flex gap-2">
+                            <button id="refreshConfig" class="btn btn-outline btn-sm">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Refresh
+                            </button>
+                            <button id="saveAllConfig" class="btn btn-primary btn-sm" disabled>
+                                <i class="fas fa-save mr-2"></i>
+                                Save All Changes
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <div class="font-medium">Configuration Settings</div>
+                            <div class="text-sm">Modify application settings below. Changes are saved to the database and take effect immediately.</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration Loading -->
+                    <div id="config-loading" class="text-center py-8">
+                        <span class="loading loading-spinner loading-lg text-primary"></span>
+                        <p class="mt-2 text-base-content/70">Loading configuration...</p>
+                    </div>
+                    
+                    <!-- Configuration Content -->
+                    <div id="config-content" class="hidden">
+                        <!-- Configuration categories will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer footer-center bg-base-300 text-base-content p-4">
+        <aside>
+            <p>© 2024 Cycling Calories Calculator. Built with HTMX, Chart.js, DaisyUI & Tailwind CSS</p>
+        </aside>
+    </footer>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js" defer></script>
+</body>
+</html>

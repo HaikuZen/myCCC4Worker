@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Upload Test</title>
+</head>
+<body>
+    <h1>Debug Upload Test</h1>
+    
+    <h2>Test 1: Simple Form Upload</h2>
+    <form id="simple-form" enctype="multipart/form-data">
+        <input type="file" name="gpxFile" id="simple-file" accept=".gpx">
+        <button type="submit">Upload</button>
+    </form>
+    
+    <h2>Test 2: FormData Upload</h2>
+    <input type="file" id="formdata-file" accept=".gpx">
+    <button onclick="uploadWithFormData()">Upload with FormData</button>
+    
+    <h2>Results</h2>
+    <div id="results"></div>
+    
+    <script>
+        console.log('🧪 Debug upload page loaded');
+        
+        // Test 1: Simple form
+        document.getElementById('simple-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const file = document.getElementById('simple-file').files[0];
+            
+            console.log('📎 Simple form test');
+            console.log('File selected:', file ? file.name : 'none');
+            console.log('File size:', file ? file.size : 'n/a');
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}:`, value);
+            }
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                console.log('Response status:', response.status);
+                console.log('Response:', result);
+                
+                document.getElementById('results').innerHTML = `
+                    <h3>Simple Form Result (Status: ${response.status})</h3>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `
+                    <h3>Error</h3>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        });
+        
+        // Test 2: FormData
+        async function uploadWithFormData() {
+            const fileInput = document.getElementById('formdata-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+            
+            console.log('📎 FormData test');
+            console.log('File selected:', file.name);
+            console.log('File size:', file.size);
+            console.log('File type:', file.type);
+            
+            const formData = new FormData();
+            formData.append('gpxFile', file);
+            
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}:`, value);
+            }
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                console.log('Response status:', response.status);
+                console.log('Response:', result);
+                
+                document.getElementById('results').innerHTML = `
+                    <h3>FormData Result (Status: ${response.status})</h3>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `
+                    <h3>Error</h3>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

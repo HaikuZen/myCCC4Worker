@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart.js Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+</head>
+<body>
+    <h1>Chart.js Loading Test</h1>
+    <canvas id="testChart" width="400" height="200"></canvas>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            console.log('Chart available:', typeof Chart !== 'undefined');
+            
+            if (typeof Chart !== 'undefined') {
+                const ctx = document.getElementById('testChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar'],
+                        datasets: [{
+                            label: 'Test',
+                            data: [10, 20, 30],
+                            borderColor: 'blue'
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
+                });
+                console.log('✅ Chart created successfully');
+            } else {
+                console.error('❌ Chart.js not available');
+            }
+        });
+    </script>
+</body>
+</html>

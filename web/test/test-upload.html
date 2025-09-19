@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Test - Cycling Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin: 15px 0; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .btn:hover { background: #0056b3; }
+        .result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>File Upload Test</h1>
+    
+    <div id="test-results">
+        <h2>Test Results</h2>
+        <div id="results-content">No tests run yet.</div>
+    </div>
+    
+    <hr>
+    
+    <h2>Test 1: Basic File Upload (Standard Form)</h2>
+    <form id="standard-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Select GPX File:</label><br>
+            <input type="file" name="gpxFile" id="standard-file" accept=".gpx" required>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn">Test Standard Upload</button>
+        </div>
+    </form>
+    
+    <hr>
+    
+    <h2>Test 2: HTMX Upload (Like Main App)</h2>
+    <form hx-post="/test-upload" hx-target="#htmx-result" hx-indicator="#htmx-loading" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Select GPX File:</label><br>
+            <input type="file" name="gpxFile" id="htmx-file" accept=".gpx" required>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn">Test HTMX Upload</button>
+        </div>
+    </form>
+    
+    <div id="htmx-loading" style="display: none;">
+        <p>Uploading...</p>
+    </div>
+    
+    <div id="htmx-result" class="result">
+        HTMX result will appear here
+    </div>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.0/dist/htmx.min.js"></script>
+    
+    <script>
+        console.log('🧪 Upload test page loaded');
+        
+        // Test standard form upload
+        document.getElementById('standard-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('standard-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                updateResults('❌ No file selected', 'error');
+                return;
+            }
+            
+            console.log('Testing standard upload with file:', file.name, 'Size:', file.size);
+            
+            const formData = new FormData();
+            formData.append('gpxFile', file);
+            
+            try {
+                const response = await fetch('/test-upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    updateResults(`✅ Standard upload successful: ${result.message}`, 'success');
+                    console.log('Standard upload result:', result);
+                } else {
+                    updateResults(`❌ Standard upload failed: ${result.message}`, 'error');
+                    console.error('Standard upload error:', result);
+                }
+            } catch (error) {
+                updateResults(`❌ Standard upload error: ${error.message}`, 'error');
+                console.error('Standard upload exception:', error);
+            }
+        });
+        
+        // Monitor HTMX events
+        document.body.addEventListener('htmx:before-request', function(evt) {
+            console.log('🚀 HTMX request starting');
+            updateResults('🚀 HTMX upload starting...', '');
+        });
+        
+        document.body.addEventListener('htmx:after-request', function(evt) {
+            console.log('✅ HTMX request completed, status:', evt.detail.xhr.status);
+            
+            if (evt.detail.xhr.status === 200) {
+                updateResults('✅ HTMX upload completed successfully', 'success');
+            } else {
+                updateResults(`❌ HTMX upload failed with status ${evt.detail.xhr.status}`, 'error');
+            }
+        });
+        
+        document.body.addEventListener('htmx:response-error', function(evt) {
+            console.error('❌ HTMX response error:', evt.detail);
+            updateResults(`❌ HTMX error: ${evt.detail.xhr.status} - ${evt.detail.xhr.statusText}`, 'error');
+        });
+        
+        function updateResults(message, type) {
+            const results = document.getElementById('results-content');
+            const timestamp = new Date().toLocaleString('en-GB');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+            
+            results.innerHTML = `
+                <div class="result ${className}">
+                    <strong>[${timestamp}]</strong> ${message}
+                </div>
+                ${results.innerHTML}
+            `;
+        }
+        
+        // Log file selections
+        document.getElementById('standard-file').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                console.log('📎 Standard form file selected:', file.name, 'Size:', file.size);
+                updateResults(`📎 Standard form file selected: ${file.name} (${file.size} bytes)`, '');
+            }
+        });
+        
+        document.getElementById('htmx-file').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                console.log('📎 HTMX form file selected:', file.name, 'Size:', file.size);
+                updateResults(`📎 HTMX form file selected: ${file.name} (${file.size} bytes)`, '');
+            }
+        });
+    </script>
+</body>
+</html>

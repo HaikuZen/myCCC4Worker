@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Cycling Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        .warning { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>Debug Page - Cycling Calculator</h1>
+    
+    <div id="tests">
+        <div class="test">
+            <h3>Chart.js Loading Test</h3>
+            <div id="chart-test">Testing...</div>
+        </div>
+        
+        <div class="test">
+            <h3>API Connectivity Test</h3>
+            <div id="api-test">Testing...</div>
+        </div>
+        
+        <div class="test">
+            <h3>Sample Chart</h3>
+            <canvas id="testChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        console.log('🔍 Starting debug tests...');
+        
+        // Test Chart.js loading
+        function testChartJS() {
+            const testDiv = document.getElementById('chart-test');
+            
+            if (typeof Chart !== 'undefined') {
+                testDiv.innerHTML = '✅ Chart.js loaded successfully';
+                testDiv.parentElement.className = 'test success';
+                
+                // Create a simple test chart
+                try {
+                    const ctx = document.getElementById('testChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                            datasets: [{
+                                label: 'Test Data',
+                                data: [10, 20, 30, 25, 35],
+                                borderColor: 'rgb(75, 192, 192)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Test Chart'
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Test chart created successfully');
+                } catch (chartError) {
+                    console.error('❌ Chart creation failed:', chartError);
+                    testDiv.innerHTML = '❌ Chart creation failed: ' + chartError.message;
+                    testDiv.parentElement.className = 'test error';
+                }
+            } else {
+                testDiv.innerHTML = '❌ Chart.js not available';
+                testDiv.parentElement.className = 'test error';
+                // Retry after a delay
+                setTimeout(testChartJS, 500);
+            }
+        }
+        
+        // Test API connectivity
+        async function testAPI() {
+            const testDiv = document.getElementById('api-test');
+            
+            try {
+                const response = await fetch('/api/dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    testDiv.innerHTML = '✅ API connection successful. Data: ' + JSON.stringify(data, null, 2).substring(0, 200) + '...';
+                    testDiv.parentElement.className = 'test success';
+                } else {
+                    testDiv.innerHTML = '⚠️ API responded with status: ' + response.status;
+                    testDiv.parentElement.className = 'test warning';
+                }
+            } catch (error) {
+                testDiv.innerHTML = '❌ API connection failed: ' + error.message;
+                testDiv.parentElement.className = 'test error';
+            }
+        }
+        
+        // Start tests when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(testChartJS, 100);
+                testAPI();
+            });
+        } else {
+            setTimeout(testChartJS, 100);
+            testAPI();
+        }
+        
+        // Log all global variables related to charts
+        setTimeout(() => {
+            console.log('Global Chart object:', typeof Chart);
+            console.log('Window object keys containing "chart":', Object.keys(window).filter(key => key.toLowerCase().includes('chart')));
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Data Test</title>
+</head>
+<body>
+    <h1>Chart Data Test</h1>
+    <p>Check browser console for debug output.</p>
+    
+    <script>
+        // Simulate loading database chart data
+        async function testChartDataLoading() {
+            try {
+                const response = await fetch('/api/dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('🧪 Test: Raw dashboard data:', data);
+                    console.log('🧪 Test: Chart data structure:', data.chartData);
+                    
+                    if (data.chartData && data.chartData.length > 0) {
+                        console.log('🧪 Test: First chart data item:', data.chartData[0]);
+                        
+                        // Test date parsing
+                        data.chartData.forEach((item, index) => {
+                            const date = new Date(item.date);
+                            console.log(`🧪 Test: Item ${index} - Original: "${item.date}", Parsed: ${date}, Valid: ${!isNaN(date.getTime())}`);
+                        });
+                    }
+                } else {
+                    console.error('🧪 Test: API call failed:', response.status);
+                }
+            } catch (error) {
+                console.error('🧪 Test: Error:', error);
+            }
+        }
+        
+        // Run test when page loads
+        window.addEventListener('load', testChartDataLoading);
+    </script>
+</body>
+</html>

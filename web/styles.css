@@ -1,0 +1,288 @@
+/* Custom CSS for Cycling Calories Calculator */
+
+/* Loading animations */
+@keyframes pulse-primary {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: block;
+}
+
+.htmx-request.htmx-indicator {
+    display: block;
+}
+
+/* Enhanced drag and drop styling */
+.drag-over {
+    border-color: hsl(var(--p)) !important;
+    background-color: hsl(var(--p) / 0.1) !important;
+    animation: pulse-primary 1.5s ease-in-out infinite;
+}
+
+/* Chart container improvements */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: hsl(var(--b2));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc) / 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc) / 0.5);
+}
+
+/* Enhanced stats cards */
+.stat {
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    border-color: hsl(var(--bc) / 0.1);
+}
+
+/* Weather card gradient animation */
+.weather-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Navigation enhancement */
+.navbar {
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid hsl(var(--bc) / 0.1);
+}
+
+/* Enhanced file upload visual feedback */
+.file-upload-success {
+    animation: file-success 0.5s ease-out;
+}
+
+@keyframes file-success {
+    0% {
+        transform: scale(1);
+        background-color: hsl(var(--su) / 0.1);
+    }
+    50% {
+        transform: scale(1.02);
+        background-color: hsl(var(--su) / 0.2);
+    }
+    100% {
+        transform: scale(1);
+        background-color: hsl(var(--su) / 0.1);
+    }
+}
+
+/* Chart loading state */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    background: hsl(var(--b2));
+    border-radius: 0.5rem;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Enhanced form controls */
+.form-control input:focus,
+.form-control select:focus {
+    border-color: hsl(var(--p));
+    box-shadow: 0 0 0 3px hsl(var(--p) / 0.1);
+    outline: none;
+}
+
+/* Badge animations */
+.badge {
+    transition: all 0.2s ease;
+}
+
+.badge:hover {
+    transform: scale(1.05);
+}
+
+/* Forecast cards enhancement */
+.forecast-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.forecast-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Mobile responsiveness improvements */
+@media (max-width: 768px) {
+    .chart-container {
+        height: 250px;
+        padding: 0.5rem;
+    }
+    
+    .navbar {
+        padding: 0.5rem 1rem;
+    }
+    
+    .container {
+        padding: 0.5rem !important;
+    }
+    
+    .stat {
+        padding: 1rem;
+    }
+}
+
+/* Dark mode specific enhancements */
+[data-theme="dark"] .chart-container {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .navbar {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .footer,
+    .btn,
+    #upload,
+    .dropdown {
+        display: none !important;
+    }
+    
+    .chart-container {
+        height: 200px;
+        break-inside: avoid;
+    }
+    
+    body {
+        background: white !important;
+    }
+}
+
+/* Custom tooltip styles for charts */
+.chartjs-tooltip {
+    background: hsl(var(--b1)) !important;
+    color: hsl(var(--bc)) !important;
+    border: 1px solid hsl(var(--bc) / 0.2) !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Enhanced error states */
+.alert-error {
+    animation: error-shake 0.5s ease-in-out;
+}
+
+@keyframes error-shake {
+    0%, 20%, 40%, 60%, 80%, 100% {
+        transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+        transform: translateX(-5px);
+    }
+}
+
+/* Loading spinner customization */
+.loading {
+    animation-duration: 1s;
+}
+
+/* Enhanced section spacing */
+section {
+    scroll-margin-top: 100px;
+}
+
+/* Custom focus styles for accessibility */
+*:focus {
+    outline: 2px solid hsl(var(--p));
+    outline-offset: 2px;
+}
+
+.btn:focus,
+.input:focus,
+.select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px hsl(var(--p) / 0.3);
+}
+
+/* Enhanced card shadows */
+.card {
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Weather icon animations */
+.weather-icon {
+    animation: weather-float 3s ease-in-out infinite;
+}
+
+@keyframes weather-float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Enhanced text selection */
+::selection {
+    background-color: hsl(var(--p) / 0.3);
+    color: hsl(var(--pc));
+}

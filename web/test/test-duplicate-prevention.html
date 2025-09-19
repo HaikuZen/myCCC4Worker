@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duplicate Prevention Test - Cycling Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Duplicate Prevention Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Check Duplicate by Filename</h2>
+        <input type="text" id="filename-input" placeholder="Enter filename (e.g., test.gpx)" style="width: 300px;">
+        <button onclick="checkDuplicateFilename()">Check Duplicate</button>
+        <div id="filename-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Upload Test Files</h2>
+        <p>Upload the same file multiple times to test duplicate prevention:</p>
+        
+        <form id="test-upload-form" enctype="multipart/form-data">
+            <input type="file" name="gpxFile" id="test-file" accept=".gpx" required>
+            <button type="submit">Upload File</button>
+        </form>
+        <div id="upload-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Filename Pattern Detection</h2>
+        <p>Test common duplicate filename patterns:</p>
+        <div id="pattern-tests">
+            <button onclick="testFilenamePattern('ride.gpx')">Normal: ride.gpx</button>
+            <button onclick="testFilenamePattern('ride (1).gpx')">Duplicate: ride (1).gpx</button>
+            <button onclick="testFilenamePattern('ride copy.gpx')">Copy: ride copy.gpx</button>
+            <button onclick="testFilenamePattern('ride-2.gpx')">Numbered: ride-2.gpx</button>
+        </div>
+        <div id="pattern-result"></div>
+    </div>
+    
+    <script>
+        console.log('🧪 Duplicate prevention test page loaded');
+        
+        // Test 1: Check duplicate by filename
+        async function checkDuplicateFilename() {
+            const filename = document.getElementById('filename-input').value.trim();
+            if (!filename) {
+                showResult('filename-result', 'Please enter a filename', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/check-duplicate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    if (result.isDuplicate) {
+                        showResult('filename-result', 
+                            `✋ Duplicate found! File "${filename}" already exists (uploaded: ${new Date(result.existing.ride_date).toLocaleDateString()})`,
+                            'warning'
+                        );
+                    } else {
+                        showResult('filename-result', `✅ No duplicate found for "${filename}"`, 'success');
+                    }
+                } else {
+                    showResult('filename-result', `❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error checking duplicate:', error);
+                showResult('filename-result', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Test 2: Upload test files
+        document.getElementById('test-upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('test-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showResult('upload-result', 'Please select a file', 'error');
+                return;
+            }
+            
+            console.log('📤 Testing upload:', file.name);
+            showResult('upload-result', `🚀 Uploading "${file.name}"...`, 'info');
+            
+            const formData = new FormData();
+            formData.append('gpxFile', file);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                console.log('Upload response status:', response.status);
+                
+                if (response.status === 200) {
+                    showResult('upload-result', '✅ Upload successful!', 'success');
+                } else if (response.status === 409) {
+                    showResult('upload-result', `⚠️ Duplicate detected: ${result}`, 'warning');
+                } else {
+                    showResult('upload-result', `❌ Upload failed (${response.status}): ${result}`, 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showResult('upload-result', `❌ Upload error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Test 3: Filename pattern detection
+        function testFilenamePattern(filename) {
+            const isLikelyDuplicate = isLikelyDuplicateFilename(filename);
+            const result = isLikelyDuplicate ? 
+                `⚠️ "${filename}" matches duplicate pattern` : 
+                `✅ "${filename}" is a normal filename`;
+            
+            showResult('pattern-result', result, isLikelyDuplicate ? 'warning' : 'success');
+        }
+        
+        // Helper function from main app
+        function isLikelyDuplicateFilename(filename) {
+            const duplicatePatterns = [
+                /\\s*\\(\\d+\\)\\.gpx$/i,        // filename (1).gpx, filename (2).gpx
+                /\\s*-\\s*copy\\.gpx$/i,       // filename - copy.gpx
+                /\\s*copy\\.gpx$/i,          // filename copy.gpx
+                /\\s*\\d+\\.gpx$/i,           // filename1.gpx, filename2.gpx
+                /\\s*-\\s*\\d+\\.gpx$/i        // filename-1.gpx, filename-2.gpx
+            ];
+            
+            return duplicatePatterns.some(pattern => pattern.test(filename));
+        }
+        
+        // Helper function to show results
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${message}</div>`;
+            
+            // Auto-clear after 10 seconds for info messages
+            if (type === 'info') {
+                setTimeout(() => {
+                    element.innerHTML = '';
+                }, 10000);
+            }
+        }
+        
+        // Allow Enter key for filename check
+        document.getElementById('filename-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkDuplicateFilename();
+            }
+        });
+    </script>
+</body>
+</html>
