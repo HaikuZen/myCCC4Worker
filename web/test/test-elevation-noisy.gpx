@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Real GPS Device Simulation" 
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Real-world GPS Elevation Data (with noise)</name>
+    <desc>Simulates real GPS elevation data with typical noise patterns that cause problems</desc>
+  </metadata>
+  
+  <trk>
+    <name>Noisy GPS Elevation Profile</name>
+    <desc>
+      Real Route Profile (same as clean test):
+      - Start: 100m elevation
+      - Climb: 100m → 200m (100m gain)
+      - Descent: 200m → 50m (150m loss) 
+      - Final climb: 50m → 125m (75m gain)
+      
+      Expected: 175m gain, 150m loss
+      
+      But with GPS noise:
+      - ±3-8m random fluctuations at each point
+      - Occasional GPS spikes (±15-30m)
+      - Barometric pressure drift
+      
+      Current algorithm will show inflated elevation gain/loss due to noise
+    </desc>
+    <trkseg>
+      <!-- Start climb with GPS noise -->
+      <trkpt lat="45.000000" lon="9.000000">
+        <ele>100.0</ele>
+        <time>2024-01-01T10:00:00Z</time>
+      </trkpt>
+      <trkpt lat="45.001000" lon="9.001000">
+        <ele>97.5</ele>  <!-- GPS noise: -2.5m -->
+        <time>2024-01-01T10:01:00Z</time>
+      </trkpt>
+      <trkpt lat="45.002000" lon="9.002000">
+        <ele>108.2</ele> <!-- Should be ~105m, GPS +3.2m -->
+        <time>2024-01-01T10:02:00Z</time>
+      </trkpt>
+      <trkpt lat="45.003000" lon="9.003000">
+        <ele>104.8</ele> <!-- GPS noise: -5.2m -->
+        <time>2024-01-01T10:03:00Z</time>
+      </trkpt>
+      <trkpt lat="45.004000" lon="9.004000">
+        <ele>118.7</ele> <!-- Should be ~115m, GPS +3.7m -->
+        <time>2024-01-01T10:04:00Z</time>
+      </trkpt>
+      <trkpt lat="45.005000" lon="9.005000">
+        <ele>142.1</ele> <!-- GPS spike: +17.1m above expected 125m -->
+        <time>2024-01-01T10:05:00Z</time>
+      </trkpt>
+      <trkpt lat="45.006000" lon="9.006000">
+        <ele>121.3</ele> <!-- GPS correction: -20.8m -->
+        <time>2024-01-01T10:06:00Z</time>
+      </trkpt>
+      <trkpt lat="45.007000" lon="9.007000">
+        <ele>133.6</ele> <!-- Should be ~135m, GPS -1.4m -->
+        <time>2024-01-01T10:07:00Z</time>
+      </trkpt>
+      <trkpt lat="45.008000" lon="9.008000">
+        <ele>148.9</ele> <!-- Should be ~145m, GPS +3.9m -->
+        <time>2024-01-01T10:08:00Z</time>
+      </trkpt>
+      <trkpt lat="45.009000" lon="9.009000">
+        <ele>151.2</ele> <!-- Should be ~155m, GPS -3.8m -->
+        <time>2024-01-01T10:09:00Z</time>
+      </trkpt>
+      <trkpt lat="45.010000" lon="9.010000">
+        <ele>169.8</ele> <!-- Should be ~165m, GPS +4.8m -->
+        <time>2024-01-01T10:10:00Z</time>
+      </trkpt>
+      <trkpt lat="45.011000" lon="9.011000">
+        <ele>172.4</ele> <!-- Should be ~175m, GPS -2.6m -->
+        <time>2024-01-01T10:11:00Z</time>
+      </trkpt>
+      <trkpt lat="45.012000" lon="9.012000">
+        <ele>168.7</ele> <!-- GPS noise: -6.3m -->
+        <time>2024-01-01T10:12:00Z</time>
+      </trkpt>
+      <trkpt lat="45.013000" lon="9.013000">
+        <ele>193.2</ele> <!-- Should be ~185m, GPS +8.2m -->
+        <time>2024-01-01T10:13:00Z</time>
+      </trkpt>
+      <trkpt lat="45.014000" lon="9.014000">
+        <ele>189.6</ele> <!-- GPS noise: -3.6m -->
+        <time>2024-01-01T10:14:00Z</time>
+      </trkpt>
+      <trkpt lat="45.015000" lon="9.015000">
+        <ele>206.3</ele> <!-- Should be ~195m, GPS +11.3m -->
+        <time>2024-01-01T10:15:00Z</time>
+      </trkpt>
+      <trkpt lat="45.016000" lon="9.016000">
+        <ele>195.8</ele> <!-- Should be ~200m, reached summit -->
+        <time>2024-01-01T10:16:00Z</time>
+      </trkpt>
+      
+      <!-- Start descent with GPS noise -->
+      <trkpt lat="45.017000" lon="9.017000">
+        <ele>203.4</ele> <!-- GPS spike: +8.4m -->
+        <time>2024-01-01T10:17:00Z</time>
+      </trkpt>
+      <trkpt lat="45.018000" lon="9.018000">
+        <ele>187.2</ele> <!-- Should be ~190m, GPS -2.8m -->
+        <time>2024-01-01T10:18:00Z</time>
+      </trkpt>
+      <trkpt lat="45.019000" lon="9.019000">
+        <ele>184.7</ele> <!-- GPS noise: -5.3m -->
+        <time>2024-01-01T10:19:00Z</time>
+      </trkpt>
+      <trkpt lat="45.020000" lon="9.020000">
+        <ele>166.8</ele> <!-- Should be ~170m, GPS -3.2m -->
+        <time>2024-01-01T10:20:00Z</time>
+      </trkpt>
+      <trkpt lat="45.021000" lon="9.021000">
+        <ele>174.1</ele> <!-- GPS noise: +14.1m -->
+        <time>2024-01-01T10:21:00Z</time>
+      </trkpt>
+      <trkpt lat="45.022000" lon="9.022000">
+        <ele>145.3</ele> <!-- Should be ~150m, GPS -4.7m -->
+        <time>2024-01-01T10:22:00Z</time>
+      </trkpt>
+      <trkpt lat="45.023000" lon="9.023000">
+        <ele>138.9</ele> <!-- Should be ~130m, GPS +8.9m -->
+        <time>2024-01-01T10:23:00Z</time>
+      </trkpt>
+      <trkpt lat="45.024000" lon="9.024000">
+        <ele>125.4</ele> <!-- Should be ~110m, GPS +15.4m -->
+        <time>2024-01-01T10:24:00Z</time>
+      </trkpt>
+      <trkpt lat="45.025000" lon="9.025000">
+        <ele>103.8</ele> <!-- Should be ~90m, GPS +13.8m -->
+        <time>2024-01-01T10:25:00Z</time>
+      </trkpt>
+      <trkpt lat="45.026000" lon="9.026000">
+        <ele>67.2</ele>  <!-- Should be ~70m, GPS -2.8m -->
+        <time>2024-01-01T10:26:00Z</time>
+      </trkpt>
+      <trkpt lat="45.027000" lon="9.027000">
+        <ele>53.6</ele>  <!-- Should be ~50m, GPS +3.6m -->
+        <time>2024-01-01T10:27:00Z</time>
+      </trkpt>
+      
+      <!-- Final climb with GPS noise -->
+      <trkpt lat="45.028000" lon="9.028000">
+        <ele>48.2</ele>  <!-- GPS dip: -6.8m -->
+        <time>2024-01-01T10:28:00Z</time>
+      </trkpt>
+      <trkpt lat="45.029000" lon="9.029000">
+        <ele>61.7</ele>  <!-- Should be ~60m, GPS +1.7m -->
+        <time>2024-01-01T10:29:00Z</time>
+      </trkpt>
+      <trkpt lat="45.030000" lon="9.030000">
+        <ele>74.3</ele>  <!-- Should be ~70m, GPS +4.3m -->
+        <time>2024-01-01T10:30:00Z</time>
+      </trkpt>
+      <trkpt lat="45.031000" lon="9.031000">
+        <ele>85.9</ele>  <!-- Should be ~80m, GPS +5.9m -->
+        <time>2024-01-01T10:31:00Z</time>
+      </trkpt>
+      <trkpt lat="45.032000" lon="9.032000">
+        <ele>97.4</ele>  <!-- Should be ~90m, GPS +7.4m -->
+        <time>2024-01-01T10:32:00Z</time>
+      </trkpt>
+      <trkpt lat="45.033000" lon="9.033000">
+        <ele>108.2</ele> <!-- Should be ~100m, GPS +8.2m -->
+        <time>2024-01-01T10:33:00Z</time>
+      </trkpt>
+      <trkpt lat="45.034000" lon="9.034000">
+        <ele>101.8</ele> <!-- GPS noise: -6.4m -->
+        <time>2024-01-01T10:34:00Z</time>
+      </trkpt>
+      <trkpt lat="45.035000" lon="9.035000">
+        <ele>117.6</ele> <!-- Should be ~110m, GPS +7.6m -->
+        <time>2024-01-01T10:35:00Z</time>
+      </trkpt>
+      <trkpt lat="45.036000" lon="9.036000">
+        <ele>128.4</ele> <!-- Should be ~125m, GPS +3.4m (finish) -->
+        <time>2024-01-01T10:36:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

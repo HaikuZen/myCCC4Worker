@@ -1,46 +1,27 @@
+import { createLogger } from './logger'
+import { CyclingDatabase, GlobalStatistics, RideRecord } from './cycling-database'
+
 /**
- * Database Service for Cloudflare D1
- * Converted from SQLite3 to work with Cloudflare D1 database
+ * Database Service - Database-agnostic service layer
+ * Delegates all database operations to CyclingDatabase implementation
  */
-export class DatabaseService {
-  private db: D1Database
-  private isInitialized: boolean = false
+export class DatabaseService extends CyclingDatabase{
 
-  constructor(database: D1Database) {
-    this.db = database
+  private logger = createLogger('DatabaseService')
+
+  constructor(database: D1Database ) {
+    super(database) 
+    this.logger.info('DatabaseService initialized with provided database instance.') 
   }
 
-  /**
-   * Initialize the database connection (no-op for D1)
-   */
-  async initialize() {
-    if (this.isInitialized) return
-    this.isInitialized = true
-    console.log('📊 Database service initialized (D1)')
-  }
-
+  
   /**
    * Get global statistics for the dashboard
    */
-  async getGlobalStatistics() {
-    if (!this.isInitialized) await this.initialize()
-    
+  async  getGlobalStatistics() {
+     
     try {
-      const query = `
-        SELECT 
-          COUNT(*) as total_rides,
-          COALESCE(SUM(distance), 0) as total_distance,
-          COALESCE(SUM(total_calories), 0) as total_calories,
-          COALESCE(SUM(duration), 0) as total_duration,
-          COALESCE(AVG(average_speed), 0) as avg_speed,
-          COALESCE(SUM(elevation_gain), 0) as total_elevation_gain,
-          COALESCE(AVG(total_calories / NULLIF(distance, 0)), 0) as avg_calories_per_km,
-          MIN(ride_date) as first_ride,
-          MAX(ride_date) as last_ride
-        FROM rides
-      `
-      
-      const result = await this.db.prepare(query).first()
+      const result = await super.getGlobalStatisticsFromDB()
       
       if (!result || result.total_rides === 0) {
         return {
@@ -70,7 +51,7 @@ export class DatabaseService {
         lastRide: result.last_ride ? new Date(result.last_ride).toLocaleDateString('en-GB') : null
       }
     } catch (error) {
-      console.error('Error getting global statistics:', error)
+      this.logger.error('Error getting global statistics:', error)
       return { hasData: false, error: error.message }
     }
   }
@@ -79,31 +60,22 @@ export class DatabaseService {
    * Get recent rides for display
    */
   async getRecentRides(limit: number = 10) {
-    if (!this.isInitialized) await this.initialize()
-    
+     
     try {
-      const query = `
-        SELECT id, gpx_filename, ride_date, distance, total_calories, 
-               duration, average_speed, elevation_gain
-        FROM rides 
-        ORDER BY ride_date DESC 
-        LIMIT ?
-      `
+      const rides = await super.getRecentRidesFromDB(limit)
       
-      const result = await this.db.prepare(query).bind(limit).all()
-      
-      return result.results.map((ride: any) => ({
+      return rides.map((ride: RideRecord) => ({
         id: ride.id,
         filename: ride.gpx_filename || 'Unknown',
         date: ride.ride_date ? new Date(ride.ride_date).toLocaleDateString('en-GB') : 'Unknown',
-        distance: parseFloat(ride.distance || 0).toFixed(1),
+        distance: parseFloat(ride.distance?.toString() || '0').toFixed(1),
         calories: Math.round(ride.total_calories || 0),
         duration: this.formatDuration(ride.duration || 0),
-        avgSpeed: parseFloat(ride.average_speed || 0).toFixed(1),
+        avgSpeed: parseFloat(ride.average_speed?.toString() || '0').toFixed(1),
         elevationGain: Math.round(ride.elevation_gain || 0)
       }))
     } catch (error) {
-      console.error('Error getting recent rides:', error)
+      this.logger.error('Error getting recent rides:', error)
       return []
     }
   }
@@ -112,42 +84,29 @@ export class DatabaseService {
    * Get rides within date range
    */
   async getRidesInDateRange(startDate: string, endDate: string, limit?: number) {
-    if (!this.isInitialized) await this.initialize()
     
     try {
-      let query = `
-        SELECT id, gpx_filename, ride_date, distance, total_calories, 
-               duration, average_speed, elevation_gain
-        FROM rides 
-        WHERE ride_date >= ? AND ride_date <= ?
-        ORDER BY ride_date DESC
-      `
+      const rides = await super.getRidesInDateRangeFromDB(
+        new Date(startDate),
+        new Date(endDate),
+        limit
+      )
       
-      const params = [new Date(startDate).toISOString(), new Date(endDate).toISOString()]
-      
-      if (limit) {
-        query += ' LIMIT ?'
-        params.push(limit.toString())
-      }
-      
-      const result = await this.db.prepare(query).bind(...params).all()
-      const rides = result.results
-      
-      const totalDistance = rides.reduce((sum: number, ride: any) => sum + (ride.distance || 0), 0)
-      const totalCalories = rides.reduce((sum: number, ride: any) => sum + (ride.total_calories || 0), 0)
-      const totalDuration = rides.reduce((sum: number, ride: any) => sum + (ride.duration || 0), 0)
-      const avgSpeed = rides.length > 0 ? rides.reduce((sum: number, ride: any) => sum + (ride.average_speed || 0), 0) / rides.length : 0
-      const totalElevation = rides.reduce((sum: number, ride: any) => sum + (ride.elevation_gain || 0), 0)
+      const totalDistance = rides.reduce((sum: number, ride: RideRecord) => sum + (ride.distance || 0), 0)
+      const totalCalories = rides.reduce((sum: number, ride: RideRecord) => sum + (ride.total_calories || 0), 0)
+      const totalDuration = rides.reduce((sum: number, ride: RideRecord) => sum + (ride.duration || 0), 0)
+      const avgSpeed = rides.length > 0 ? rides.reduce((sum: number, ride: RideRecord) => sum + (ride.average_speed || 0), 0) / rides.length : 0
+      const totalElevation = rides.reduce((sum: number, ride: RideRecord) => sum + (ride.elevation_gain || 0), 0)
 
       return {
-        rides: rides.map((ride: any) => ({
+        rides: rides.map((ride: RideRecord) => ({
           id: ride.id,
           filename: ride.gpx_filename || 'Unknown',
           date: ride.ride_date ? new Date(ride.ride_date).toLocaleDateString('en-GB') : 'Unknown',
-          distance: parseFloat(ride.distance || 0).toFixed(1),
+          distance: parseFloat(ride.distance?.toString() || '0').toFixed(1),
           calories: Math.round(ride.total_calories || 0),
           duration: this.formatDuration(ride.duration || 0),
-          avgSpeed: parseFloat(ride.average_speed || 0).toFixed(1),
+          avgSpeed: parseFloat(ride.average_speed?.toString() || '0').toFixed(1),
           elevationGain: Math.round(ride.elevation_gain || 0)
         })),
         summary: {
@@ -160,7 +119,7 @@ export class DatabaseService {
         }
       }
     } catch (error) {
-      console.error('Error getting rides in date range:', error)
+      this.logger.error('Error getting rides in date range:', error)
       return { rides: [], summary: null, error: error.message }
     }
   }
@@ -169,21 +128,12 @@ export class DatabaseService {
    * Get chart data for visualization
    */
   async getChartData(startDate = '1999-01-01', endDate = '2999-12-31') {
-    if (!this.isInitialized) await this.initialize()
     
     try {
-      const query = `
-        SELECT ride_date, distance, total_calories, average_speed, elevation_gain
-        FROM rides 
-        WHERE ride_date >= ? AND ride_date <= ?
-        ORDER BY ride_date
-      `
-      
-      const result = await this.db.prepare(query)
-        .bind(new Date(startDate).toISOString(), new Date(endDate).toISOString())
-        .all()
-      
-      const rides = result.results
+      const rides = await super.getRidesForChart(
+        new Date(startDate),
+        new Date(endDate)
+      )
       
       // Group rides by date
       const dateGroups: Record<string, any> = {}
@@ -221,7 +171,7 @@ export class DatabaseService {
 
       return chartData
     } catch (error) {
-      console.error('Error getting chart data:', error)
+      this.logger.error('Error getting chart data:', error)
       return []
     }
   }
@@ -230,25 +180,13 @@ export class DatabaseService {
    * Get monthly summary data
    */
   async getMonthlySummary() {
-    if (!this.isInitialized) await this.initialize()
     
     try {
       // Get rides from the last 12 months
       const endDate = new Date()
       const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1)
       
-      const query = `
-        SELECT ride_date, distance, total_calories, elevation_gain
-        FROM rides 
-        WHERE ride_date >= ? AND ride_date <= ?
-        ORDER BY ride_date
-      `
-      
-      const result = await this.db.prepare(query)
-        .bind(startDate.toISOString(), endDate.toISOString())
-        .all()
-      
-      const rides = result.results
+      const rides = await super.getRidesForMonthlySummary(startDate, endDate)
       
       // Group by month
       const monthGroups: Record<string, any> = {}
@@ -282,7 +220,7 @@ export class DatabaseService {
         elevation: Math.round(month.elevation)
       })).sort((a, b) => a.month.localeCompare(b.month))
     } catch (error) {
-      console.error('Error getting monthly summary:', error)
+      this.logger.error('Error getting monthly summary:', error)
       return []
     }
   }
@@ -291,24 +229,12 @@ export class DatabaseService {
    * Get performance trends
    */
   async getPerformanceTrends(days: number = 90) {
-    if (!this.isInitialized) await this.initialize()
     
     try {
       const endDate = new Date()
       const startDate = new Date(endDate.getTime() - (days * 24 * 60 * 60 * 1000))
       
-      const query = `
-        SELECT average_speed, total_calories, distance, duration
-        FROM rides 
-        WHERE ride_date >= ? AND ride_date <= ?
-        ORDER BY ride_date
-      `
-      
-      const result = await this.db.prepare(query)
-        .bind(startDate.toISOString(), endDate.toISOString())
-        .all()
-      
-      const rides = result.results
+      const rides = await super.getRidesForTrends(startDate, endDate)
       
       if (rides.length === 0) return null
 
@@ -350,7 +276,7 @@ export class DatabaseService {
 
       return trends
     } catch (error) {
-      console.error('Error getting performance trends:', error)
+      this.logger.error('Error getting performance trends:', error)
       return null
     }
   }
@@ -359,62 +285,14 @@ export class DatabaseService {
    * Save analyzed GPX data to database
    */
   async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70): Promise<number> {
-    if (!this.isInitialized) await this.initialize()
+    
     
     try {
-      // Transform the GPX parser output to match the expected database format
-      const insertRideSQL = `
-        INSERT INTO rides (
-          gpx_filename, rider_weight, ride_date,
-          distance, duration, elevation_gain, average_speed,
-          start_latitude, start_longitude,
-          total_calories, base_calories, elevation_calories,
-          wind_adjustment, environmental_adjustment, base_met,
-          calories_per_km, calories_per_hour,
-          wind_speed, wind_direction, humidity, temperature,
-          pressure, weather_source,
-          elevation_enhanced, has_elevation_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-
-      const rideData = [
-        gpxFilename,
-        riderWeight,
-        analysisData.summary.startTime ? analysisData.summary.startTime.toISOString() : null,
-        analysisData.summary.distance,
-        analysisData.summary.totalTime / 60, // Convert to minutes
-        analysisData.summary.elevationGain,
-        analysisData.summary.avgSpeed,
-        analysisData.points[0]?.lat || 0,
-        analysisData.points[0]?.lon || 0,
-        analysisData.analysis.caloriesBurned.estimated,
-        analysisData.analysis.caloriesBurned.breakdown.base || 0,
-        analysisData.analysis.caloriesBurned.breakdown.elevation || 0,
-        0, // wind adjustment
-        0, // environmental adjustment
-        0, // base MET
-        Math.round(analysisData.analysis.caloriesBurned.estimated / analysisData.summary.distance),
-        Math.round(analysisData.analysis.caloriesBurned.estimated / (analysisData.summary.totalTime / 3600)),
-        0, // wind speed
-        0, // wind direction
-        50, // humidity
-        20, // temperature
-        1013, // pressure
-        'default', // weather source
-        false, // elevation enhanced
-        analysisData.summary.elevationGain > 0 // has elevation data
-      ]
-
-      const result = await this.db.prepare(insertRideSQL).bind(...rideData).run()
-      
-      if (result.success) {
-        console.log(`💾 Saved ride analysis to database with ID: ${result.meta.last_row_id}`)
-        return result.meta.last_row_id as number
-      } else {
-        throw new Error('Failed to insert ride data')
-      }
+      const rideId = await super.saveGPXAnalysis(analysisData, gpxFilename, riderWeight)
+      this.logger.info(`💾 Saved ride analysis to database with ID: ${rideId}`)
+      return rideId
     } catch (error) {
-      console.error('Error saving GPX analysis:', error)
+      this.logger.error('Error saving GPX analysis:', error)
       throw error
     }
   }
@@ -423,14 +301,12 @@ export class DatabaseService {
    * Check if a GPX file already exists by filename
    */
   async checkDuplicateByFilename(filename: string) {
-    if (!this.isInitialized) await this.initialize()
+    
     
     try {
-      const query = 'SELECT id, gpx_filename, ride_date FROM rides WHERE gpx_filename = ?'
-      const result = await this.db.prepare(query).bind(filename).first()
-      return result || null
+      return await super.checkDuplicateByFilename(filename)
     } catch (error) {
-      console.error('Error checking duplicate by filename:', error)
+      this.logger.error('Error checking duplicate by filename:', error)
       throw error
     }
   }
@@ -439,23 +315,12 @@ export class DatabaseService {
    * Check if a GPX file already exists by content hash
    */
   async checkDuplicateByContent(distance: number, duration: number, startTime: string) {
-    if (!this.isInitialized) await this.initialize()
+    
     
     try {
-      // Check for rides with same distance, duration, and start time (within 1 minute)
-      const query = `
-        SELECT id, gpx_filename, ride_date, distance, duration 
-        FROM rides 
-        WHERE ABS(distance - ?) < 0.01 
-        AND ABS(duration - ?) < 1 
-        AND ABS(julianday(ride_date) - julianday(?)) < (1.0 / 1440)
-        LIMIT 1
-      `
-      
-      const result = await this.db.prepare(query).bind(distance, duration, startTime).first()
-      return result || null
+      return await super.checkDuplicateByContent(distance, duration, startTime)
     } catch (error) {
-      console.error('Error checking duplicate by content:', error)
+      this.logger.error('Error checking duplicate by content:', error)
       throw error
     }
   }
@@ -464,7 +329,7 @@ export class DatabaseService {
    * Comprehensive duplicate check
    */
   async checkForDuplicate(filename: string, gpxData: any) {
-    if (!this.isInitialized) await this.initialize()
+    
     
     try {
       // First check by filename
@@ -503,7 +368,7 @@ export class DatabaseService {
         message: null
       }
     } catch (error) {
-      console.error('Error checking for duplicates:', error)
+      this.logger.error('Error checking for duplicates:', error)
       throw error
     }
   }
@@ -512,47 +377,17 @@ export class DatabaseService {
    * Get all configuration settings
    */
   async getAllConfiguration() {
-    if (!this.isInitialized) await this.initialize()
     
     try {
-      const query = `
-        SELECT key, value, value_type, description, category, updated_at, created_at
-        FROM configuration 
-        ORDER BY category, key
-      `
+      const configs = await super.getAllConfiguration()
       
-      const result = await this.db.prepare(query).all()
-      
-      // Parse values based on type
-      const configs = result.results.map((row: any) => {
-        let parsedValue
-        switch (row.value_type) {
-          case 'number':
-            parsedValue = parseFloat(row.value)
-            break
-          case 'boolean':
-            parsedValue = row.value === 'true'
-            break
-          case 'json':
-            try {
-              parsedValue = JSON.parse(row.value)
-            } catch {
-              parsedValue = row.value
-            }
-            break
-          default:
-            parsedValue = row.value
-        }
-        
-        return {
-          ...row,
-          parsed_value: parsedValue
-        }
-      })
-      
-      return configs
+      // Add parsed_value field for compatibility
+      return configs.map((config: any) => ({
+        ...config,
+        parsed_value: config.value
+      }))
     } catch (error) {
-      console.error('Error getting all configuration:', error)
+      this.logger.error('Error getting all configuration:', error)
       throw error
     }
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const GPXParser = require('./lib/gpx-parser');
+const GPXParser = require('./gpx-parser');
 const fs = require('fs');
 
 async function testGPXStructure() {
@@ -34,6 +34,7 @@ async function testGPXStructure() {
             console.log('Moving Time:', result.summary.movingTime, 'seconds');
             console.log('Avg Speed:', result.summary.avgSpeed, 'km/h');
             console.log('Elevation Gain:', result.summary.elevationGain, 'm');
+            console.log('elevation Loss:', result.summary.elevationLoss, 'm');
             console.log('Start Time:', result.summary.startTime);
         }
         

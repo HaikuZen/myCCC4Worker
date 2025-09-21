@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Test Generator" 
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Elevation Gain Test Route</name>
+    <desc>Test GPX file with controlled elevation profile for testing elevation gain calculation accuracy</desc>
+    <author>
+      <name>myCCC Test Suite</name>
+    </author>
+    <time>2024-01-01T10:00:00Z</time>
+  </metadata>
+  
+  <trk>
+    <name>Test Elevation Profile</name>
+    <desc>
+      Route Profile:
+      - Start: 100m elevation
+      - Climb 1: 100m → 200m (100m gain)
+      - Flat section: 200m
+      - Small dip with GPS noise: 200m → 198m → 202m → 199m → 201m (should not count as significant gain/loss)
+      - Climb 2: 200m → 350m (150m gain) 
+      - Descent: 350m → 50m (300m loss)
+      - Final climb: 50m → 125m (75m gain)
+      
+      Expected Results:
+      - Total Elevation Gain: 325m (100 + 150 + 75)
+      - Total Elevation Loss: 300m
+      - Net Elevation Change: +25m (125m - 100m start)
+    </desc>
+    <trkseg>
+      <!-- Start at 100m elevation -->
+      <trkpt lat="45.000000" lon="9.000000">
+        <ele>100.0</ele>
+        <time>2024-01-01T10:00:00Z</time>
+      </trkpt>
+      
+      <!-- Gradual climb to 200m (100m gain) -->
+      <trkpt lat="45.001000" lon="9.001000">
+        <ele>110.0</ele>
+        <time>2024-01-01T10:01:00Z</time>
+      </trkpt>
+      <trkpt lat="45.002000" lon="9.002000">
+        <ele>125.0</ele>
+        <time>2024-01-01T10:02:00Z</time>
+      </trkpt>
+      <trkpt lat="45.003000" lon="9.003000">
+        <ele>140.0</ele>
+        <time>2024-01-01T10:03:00Z</time>
+      </trkpt>
+      <trkpt lat="45.004000" lon="9.004000">
+        <ele>160.0</ele>
+        <time>2024-01-01T10:04:00Z</time>
+      </trkpt>
+      <trkpt lat="45.005000" lon="9.005000">
+        <ele>180.0</ele>
+        <time>2024-01-01T10:05:00Z</time>
+      </trkpt>
+      <trkpt lat="45.006000" lon="9.006000">
+        <ele>200.0</ele>
+        <time>2024-01-01T10:06:00Z</time>
+      </trkpt>
+      
+      <!-- Flat section at 200m -->
+      <trkpt lat="45.007000" lon="9.007000">
+        <ele>200.0</ele>
+        <time>2024-01-01T10:07:00Z</time>
+      </trkpt>
+      <trkpt lat="45.008000" lon="9.008000">
+        <ele>200.0</ele>
+        <time>2024-01-01T10:08:00Z</time>
+      </trkpt>
+      
+      <!-- GPS noise section (should be filtered out) -->
+      <trkpt lat="45.009000" lon="9.009000">
+        <ele>198.0</ele>
+        <time>2024-01-01T10:09:00Z</time>
+      </trkpt>
+      <trkpt lat="45.010000" lon="9.010000">
+        <ele>202.0</ele>
+        <time>2024-01-01T10:10:00Z</time>
+      </trkpt>
+      <trkpt lat="45.011000" lon="9.011000">
+        <ele>199.0</ele>
+        <time>2024-01-01T10:11:00Z</time>
+      </trkpt>
+      <trkpt lat="45.012000" lon="9.012000">
+        <ele>201.0</ele>
+        <time>2024-01-01T10:12:00Z</time>
+      </trkpt>
+      <trkpt lat="45.013000" lon="9.013000">
+        <ele>200.0</ele>
+        <time>2024-01-01T10:13:00Z</time>
+      </trkpt>
+      
+      <!-- Major climb to 350m (150m gain) -->
+      <trkpt lat="45.014000" lon="9.014000">
+        <ele>220.0</ele>
+        <time>2024-01-01T10:14:00Z</time>
+      </trkpt>
+      <trkpt lat="45.015000" lon="9.015000">
+        <ele>250.0</ele>
+        <time>2024-01-01T10:15:00Z</time>
+      </trkpt>
+      <trkpt lat="45.016000" lon="9.016000">
+        <ele>280.0</ele>
+        <time>2024-01-01T10:16:00Z</time>
+      </trkpt>
+      <trkpt lat="45.017000" lon="9.017000">
+        <ele>310.0</ele>
+        <time>2024-01-01T10:17:00Z</time>
+      </trkpt>
+      <trkpt lat="45.018000" lon="9.018000">
+        <ele>340.0</ele>
+        <time>2024-01-01T10:18:00Z</time>
+      </trkpt>
+      <trkpt lat="45.019000" lon="9.019000">
+        <ele>350.0</ele>
+        <time>2024-01-01T10:19:00Z</time>
+      </trkpt>
+      
+      <!-- Long descent to 50m (300m loss) -->
+      <trkpt lat="45.020000" lon="9.020000">
+        <ele>320.0</ele>
+        <time>2024-01-01T10:20:00Z</time>
+      </trkpt>
+      <trkpt lat="45.021000" lon="9.021000">
+        <ele>280.0</ele>
+        <time>2024-01-01T10:21:00Z</time>
+      </trkpt>
+      <trkpt lat="45.022000" lon="9.022000">
+        <ele>240.0</ele>
+        <time>2024-01-01T10:22:00Z</time>
+      </trkpt>
+      <trkpt lat="45.023000" lon="9.023000">
+        <ele>200.0</ele>
+        <time>2024-01-01T10:23:00Z</time>
+      </trkpt>
+      <trkpt lat="45.024000" lon="9.024000">
+        <ele>160.0</ele>
+        <time>2024-01-01T10:24:00Z</time>
+      </trkpt>
+      <trkpt lat="45.025000" lon="9.025000">
+        <ele>120.0</ele>
+        <time>2024-01-01T10:25:00Z</time>
+      </trkpt>
+      <trkpt lat="45.026000" lon="9.026000">
+        <ele>80.0</ele>
+        <time>2024-01-01T10:26:00Z</time>
+      </trkpt>
+      <trkpt lat="45.027000" lon="9.027000">
+        <ele>50.0</ele>
+        <time>2024-01-01T10:27:00Z</time>
+      </trkpt>
+      
+      <!-- Final climb to 125m (75m gain) -->
+      <trkpt lat="45.028000" lon="9.028000">
+        <ele>70.0</ele>
+        <time>2024-01-01T10:28:00Z</time>
+      </trkpt>
+      <trkpt lat="45.029000" lon="9.029000">
+        <ele>90.0</ele>
+        <time>2024-01-01T10:29:00Z</time>
+      </trkpt>
+      <trkpt lat="45.030000" lon="9.030000">
+        <ele>110.0</ele>
+        <time>2024-01-01T10:30:00Z</time>
+      </trkpt>
+      <trkpt lat="45.031000" lon="9.031000">
+        <ele>125.0</ele>
+        <time>2024-01-01T10:31:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

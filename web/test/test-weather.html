@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather API Test - myCCC</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffe6e6; border: 1px solid #ff9999; }
+        .success { background: #e6ffe6; border: 1px solid #99ff99; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>🌤️ Weather API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Geocoding API</h2>
+        <input type="text" id="geocodeInput" placeholder="Enter city name (e.g., Milan)" value="Milan">
+        <button onclick="testGeocode()">Test Geocoding</button>
+        <div id="geocodeResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Weather API</h2>
+        <input type="text" id="weatherLocationInput" placeholder="Enter location (e.g., Milan,IT)" value="Milan,IT">
+        <button onclick="testWeatherByLocation()">Test by Location</button>
+        <br>
+        <input type="text" id="weatherLatInput" placeholder="Latitude (e.g., 45.4642)" value="45.4642" style="width: 100px;">
+        <input type="text" id="weatherLonInput" placeholder="Longitude (e.g., 9.1900)" value="9.1900" style="width: 100px;">
+        <button onclick="testWeatherByCoords()">Test by Coordinates</button>
+        <div id="weatherResult" class="result"></div>
+    </div>
+
+    <script>
+        // Map weather conditions to FontAwesome icons (same as app.js)
+        function getWeatherIconFromCondition(condition) {
+            if (!condition) return 'fa-sun';
+            
+            const conditionLower = condition.toLowerCase();
+            
+            if (conditionLower.includes('clear') || conditionLower.includes('sunny')) {
+                return 'fa-sun';
+            } else if (conditionLower.includes('partly cloudy') || conditionLower.includes('few clouds')) {
+                return 'fa-cloud-sun';
+            } else if (conditionLower.includes('cloud') || conditionLower.includes('overcast')) {
+                return 'fa-cloud';
+            } else if (conditionLower.includes('rain') || conditionLower.includes('shower') || conditionLower.includes('drizzle')) {
+                return 'fa-cloud-rain';
+            } else if (conditionLower.includes('thunderstorm') || conditionLower.includes('storm')) {
+                return 'fa-bolt';
+            } else if (conditionLower.includes('snow') || conditionLower.includes('blizzard')) {
+                return 'fa-snowflake';
+            } else if (conditionLower.includes('mist') || conditionLower.includes('fog') || conditionLower.includes('haze')) {
+                return 'fa-smog';
+            } else if (conditionLower.includes('wind')) {
+                return 'fa-wind';
+            } else if (conditionLower.includes('hot') || conditionLower.includes('warm')) {
+                return 'fa-sun';
+            } else if (conditionLower.includes('cold') || conditionLower.includes('cool')) {
+                return 'fa-snowflake';
+            } else {
+                return 'fa-cloud';
+            }
+        }
+        
+        async function testGeocode() {
+            const location = document.getElementById('geocodeInput').value;
+            const resultDiv = document.getElementById('geocodeResult');
+            
+            if (!location) {
+                showResult(resultDiv, 'Please enter a location', 'error');
+                return;
+            }
+            
+            try {
+                showResult(resultDiv, 'Testing geocoding...', '');
+                
+                const response = await fetch(`/api/geocode?location=${encodeURIComponent(location)}`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const locationData = data.data;
+                    showResult(resultDiv, `
+                        <strong>✅ Geocoding Success (Demo: ${data.demo})</strong><br>
+                        Name: ${locationData.name}<br>
+                        Country: ${locationData.country}<br>
+                        Coordinates: ${locationData.lat}, ${locationData.lon}<br>
+                        ${data.warning ? `⚠️ Warning: ${data.warning}` : ''}
+                    `, 'success');
+                } else {
+                    showResult(resultDiv, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(resultDiv, `❌ Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testWeatherByLocation() {
+            const location = document.getElementById('weatherLocationInput').value;
+            const resultDiv = document.getElementById('weatherResult');
+            
+            if (!location) {
+                showResult(resultDiv, 'Please enter a location', 'error');
+                return;
+            }
+            
+            try {
+                showResult(resultDiv, 'Testing weather API...', '');
+                
+                const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const weather = data.data;
+                    showResult(resultDiv, `
+                        <strong>✅ Weather Success (Demo: ${data.demo})</strong><br>
+                        Temperature: ${weather.current.temp}°C<br>
+                        Condition: ${weather.current.condition}<br>
+                        Icon: <i class="fas ${getWeatherIconFromCondition(weather.current.condition)}"></i> (${getWeatherIconFromCondition(weather.current.condition)})<br>
+                        Humidity: ${weather.current.humidity}%<br>
+                        Wind: ${weather.current.wind} km/h<br>
+                        Precipitation Chance: ${weather.current.precipitationChance}%<br>
+                        Hourly Data Points: ${weather.hourlyData ? weather.hourlyData.length : 0}<br>
+                        Daily Forecast: ${weather.dailyForecast ? weather.dailyForecast.length : 0} days<br>
+                        ${data.warning ? `⚠️ Warning: ${data.warning}` : ''}
+                    `, 'success');
+                } else {
+                    showResult(resultDiv, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(resultDiv, `❌ Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testWeatherByCoords() {
+            const lat = document.getElementById('weatherLatInput').value;
+            const lon = document.getElementById('weatherLonInput').value;
+            const resultDiv = document.getElementById('weatherResult');
+            
+            if (!lat || !lon) {
+                showResult(resultDiv, 'Please enter both latitude and longitude', 'error');
+                return;
+            }
+            
+            try {
+                showResult(resultDiv, 'Testing weather API with coordinates...', '');
+                
+                const response = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const weather = data.data;
+                    showResult(resultDiv, `
+                        <strong>✅ Weather Success (Demo: ${data.demo})</strong><br>
+                        Temperature: ${weather.current.temp}°C<br>
+                        Condition: ${weather.current.condition}<br>
+                        Icon: <i class="fas ${getWeatherIconFromCondition(weather.current.condition)}"></i> (${getWeatherIconFromCondition(weather.current.condition)})<br>
+                        Humidity: ${weather.current.humidity}%<br>
+                        Wind: ${weather.current.wind} km/h<br>
+                        Precipitation Chance: ${weather.current.precipitationChance}%<br>
+                        Hourly Data Points: ${weather.hourlyData ? weather.hourlyData.length : 0}<br>
+                        Daily Forecast: ${weather.dailyForecast ? weather.dailyForecast.length : 0} days<br>
+                        ${data.warning ? `⚠️ Warning: ${data.warning}` : ''}
+                    `, 'success');
+                } else {
+                    showResult(resultDiv, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(resultDiv, `❌ Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function showResult(element, message, type) {
+            element.innerHTML = message;
+            element.className = `result ${type}`;
+        }
+    </script>
+</body>
+</html>

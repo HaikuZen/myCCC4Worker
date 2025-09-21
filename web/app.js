@@ -649,7 +649,7 @@ async function initializeWeatherLocationInput() {
     }
 }
 
-// Geocode location using OpenWeatherMap API
+// Geocode location using backend API
 async function geocodeLocation(locationName) {
     if (!locationName || locationName.length < 2) {
         return null;
@@ -665,49 +665,42 @@ async function geocodeLocation(locationName) {
         
         console.log(`🌍 Geocoding location: ${locationName}`);
         
-        // Get API key from configuration
-        const config = await loadConfiguration();
-        const apiKeyConfig = config.find(c => c.key === 'weather_api_key');
-        let apiKey = apiKeyConfig ? apiKeyConfig.value : '';
-        
-        if (!apiKey) {
-            console.warn('No weather API key found in configuration, using demo mode');
-            // For demo purposes, return mock data for common cities
-            return getDemoLocationData(locationName);
-        }
-        
-        // Call OpenWeatherMap Geocoding API
+        // Call backend geocoding API
         const response = await fetch(
-            `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationName)}&limit=1&appid=${apiKey}`,
-            { timeout: 5000 }
+            `/api/geocode?location=${encodeURIComponent(locationName)}`,
+            { 
+                timeout: 8000,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            }
         );
         
         if (!response.ok) {
             throw new Error(`Geocoding API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
-        if (data.length === 0) {
-            throw new Error('Location not found');
+        if (!result.success) {
+            throw new Error(result.error || 'Location not found');
         }
         
-        const location = data[0];
-        const locationData = {
-            name: location.name,
-            country: location.country,
-            lat: location.lat,
-            lon: location.lon,
-            state: location.state || null
-        };
+        const locationData = result.data;
         
         // Update current location data
-        currentWeatherLocation = `${location.name},${location.country}`;
-        currentLocationCoordinates = { lat: location.lat, lon: location.lon };
+        currentWeatherLocation = `${locationData.name},${locationData.country}`;
+        currentLocationCoordinates = { lat: locationData.lat, lon: locationData.lon };
         
-        // Show success state
+        // Show appropriate status based on data source
         if (statusDiv) {
-            statusDiv.innerHTML = '<i class="fas fa-check text-success"></i>';
+            if (result.demo) {
+                statusDiv.innerHTML = '<i class="fas fa-info-circle text-warning"></i>';
+                statusDiv.title = result.warning || 'Using demo data (API key required for live geocoding)';
+            } else {
+                statusDiv.innerHTML = '<i class="fas fa-check text-success"></i>';
+                statusDiv.title = '';
+            }
         }
         
         console.log(`✅ Location found:`, locationData);
@@ -730,7 +723,7 @@ async function geocodeLocation(locationName) {
             
             if (statusDiv) {
                 statusDiv.innerHTML = '<i class="fas fa-info-circle text-warning"></i>';
-                statusDiv.title = 'Using demo data (API key required for live geocoding)';
+                statusDiv.title = 'Using local demo data (geocoding service unavailable)';
             }
             
             return demoData;
@@ -820,27 +813,217 @@ async function loadWeatherData(location = null) {
     console.log(`🌤️ Loading weather data for: ${selectedLocation}`);
     
     try {
-        // TODO: Replace with real weather API integration
-        // Example implementation:
-        // const [city, country] = selectedLocation.split(',');
-        // const response = await fetch(`/api/weather?location=${selectedLocation}`);
-        // if (response.ok) {
-        //     const weatherData = await response.json();
-        //     updateWeatherDisplay(weatherData);
-        // } else {
-        //     throw new Error('Weather API failed');
-        // }
+        // Call backend weather API
+        const apiUrl = currentLocationCoordinates 
+            ? `/api/weather?lat=${currentLocationCoordinates.lat}&lon=${currentLocationCoordinates.lon}&location=${encodeURIComponent(selectedLocation)}`
+            : `/api/weather?location=${encodeURIComponent(selectedLocation)}`;
+            
+        const response = await fetch(apiUrl, {
+            timeout: 10000,
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
         
-        // For now, generate sample weather data based on location
-        loadSampleWeatherData(selectedLocation);
+        if (!response.ok) {
+            throw new Error(`Weather API error: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to get weather data');
+        }
+        
+        // Update weather display with API data
+        updateWeatherDisplay(result.data, result.demo, result.warning);
         
         // Update current location display
         document.getElementById('currentLocation').textContent = selectedLocation.split(',')[0];
         
+        console.log(`✅ Weather data loaded successfully (demo: ${result.demo})`);
+        
     } catch (error) {
         console.error('Error loading weather data:', error);
+        // Fallback to sample weather data
         loadSampleWeatherData(selectedLocation);
     }
+}
+
+// Map weather conditions to FontAwesome icons
+function getWeatherIcon(condition) {
+    if (!condition) return 'fa-sun';
+    
+    const conditionLower = condition.toLowerCase();
+    
+    // Handle different weather conditions
+    if (conditionLower.includes('clear') || conditionLower.includes('sunny')) {
+        return 'fa-sun';
+    } else if (conditionLower.includes('partly cloudy') || conditionLower.includes('few clouds')) {
+        return 'fa-cloud-sun';
+    } else if (conditionLower.includes('cloud') || conditionLower.includes('overcast')) {
+        return 'fa-cloud';
+    } else if (conditionLower.includes('rain') || conditionLower.includes('shower') || conditionLower.includes('drizzle')) {
+        return 'fa-cloud-rain';
+    } else if (conditionLower.includes('thunderstorm') || conditionLower.includes('storm')) {
+        return 'fa-bolt';
+    } else if (conditionLower.includes('snow') || conditionLower.includes('blizzard')) {
+        return 'fa-snowflake';
+    } else if (conditionLower.includes('mist') || conditionLower.includes('fog') || conditionLower.includes('haze')) {
+        return 'fa-smog';
+    } else if (conditionLower.includes('wind')) {
+        return 'fa-wind';
+    } else if (conditionLower.includes('hot') || conditionLower.includes('warm')) {
+        return 'fa-sun';
+    } else if (conditionLower.includes('cold') || conditionLower.includes('cool')) {
+        return 'fa-snowflake';
+    } else {
+        // Default fallback based on temperature if available
+        return 'fa-cloud';
+    }
+}
+
+// Update weather display with API data
+function updateWeatherDisplay(weatherData, isDemo = false, warning = null) {
+    console.log('📊 Updating weather display with:', weatherData);
+    
+    const { current, tempRange, windRange, hourlyData, dailyForecast } = weatherData;
+    
+    // Update current weather display
+    if (current) {
+        document.getElementById('currentTemp').textContent = `${current.temp}°C`;
+        document.getElementById('currentCondition').textContent = current.condition;
+        document.getElementById('visibility').textContent = current.visibility || '10';
+        document.getElementById('humidity').textContent = current.humidity || '65';
+        document.getElementById('windSpeed').textContent = current.wind || '12';
+        document.getElementById('pressure').textContent = current.pressure || '1013';
+        document.getElementById('uvIndex').textContent = current.uvIndex || '6';
+        document.getElementById('rainChance').textContent = current.precipitationChance || '30';
+        
+        // Update current weather icon based on condition
+        const currentIconElement = document.getElementById('currentIcon');
+        if (currentIconElement) {
+            const iconClass = getWeatherIcon(current.condition);
+            currentIconElement.className = `fas ${iconClass}`;
+            console.log(`🌡️ Updated current weather icon to: ${iconClass} for condition: ${current.condition}`);
+        }
+    }
+    
+    // Update forecast cards
+    if (dailyForecast && dailyForecast.length > 0) {
+        updateForecastCards(dailyForecast);
+    }
+    
+    // Update weather charts with API data
+    if (hourlyData && hourlyData.length > 0) {
+        updateWeatherChartsWithAPIData(hourlyData, tempRange, windRange);
+    } else {
+        // Fallback to generated chart data if no hourly data
+        const mockWeather = {
+            temp: current.temp,
+            tempRange: tempRange,
+            windRange: windRange,
+            wind: current.wind,
+            precipitationChance: current.precipitationChance
+        };
+        updateWeatherCharts(currentWeatherLocation, mockWeather);
+    }
+    
+    // Show warning if API is in demo mode or has issues
+    if (warning) {
+        console.warn('⚠️ Weather API warning:', warning);
+    }
+    
+    if (isDemo) {
+        console.info('🎭 Using demo weather data');
+    }
+}
+
+// Update forecast cards with API data
+function updateForecastCards(dailyForecast) {
+    const container = document.getElementById('forecastContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    dailyForecast.slice(0, 7).forEach(forecast => {
+        const forecastCard = document.createElement('div');
+        forecastCard.className = 'card bg-base-100 shadow-md p-3 text-center';
+        forecastCard.innerHTML = `
+            <div class="text-sm font-semibold mb-2">${forecast.day}</div>
+            <i class="fas ${forecast.icon} text-2xl text-primary mb-2"></i>
+            <div class="text-lg font-bold">${forecast.temp}°</div>
+            <div class="text-xs text-base-content/70">${forecast.condition}</div>
+        `;
+        container.appendChild(forecastCard);
+    });
+}
+
+// Update weather charts with real API hourly data
+function updateWeatherChartsWithAPIData(hourlyData, tempRange, windRange) {
+    if (!charts || !charts.temperature || !charts.wind) {
+        console.warn('Weather charts not initialized yet');
+        return;
+    }
+    
+    console.log('🌡️ Updating weather charts with API data');
+    
+    // Prepare data arrays for charts
+    const hourlyLabels = [];
+    const temperatureData = [];
+    const windSpeedData = [];
+    const precipitationData = [];
+    
+    // Process hourly data (extend to 24 hours if needed)
+    const currentHour = new Date().getHours();
+    
+    for (let i = 0; i < 24; i++) {
+        const hour = (currentHour + i) % 24;
+        hourlyLabels.push(`${hour}:00`);
+        
+        if (i < hourlyData.length) {
+            // Use real API data
+            const data = hourlyData[i];
+            temperatureData.push(data.temp);
+            windSpeedData.push(data.windSpeed);
+            precipitationData.push(Math.max(0, Math.min(100, data.precipitation || 0)));
+        } else {
+            // Extrapolate for remaining hours
+            const lastData = hourlyData[hourlyData.length - 1];
+            const tempVariation = tempRange ? (tempRange.max - tempRange.min) / 4 : 5;
+            const windVariation = windRange ? (windRange.max - windRange.min) / 4 : 5;
+            
+            // Create natural temperature curve
+            const tempOffset = tempVariation * Math.sin((hour - 6) / 24 * Math.PI * 2) * 0.6;
+            const windOffset = (Math.random() - 0.5) * windVariation;
+            
+            temperatureData.push(Math.round((lastData.temp + tempOffset) * 10) / 10);
+            windSpeedData.push(Math.max(0, Math.round(lastData.windSpeed + windOffset)));
+            precipitationData.push(Math.max(0, Math.min(100, (lastData.precipitation || 30) + (Math.random() - 0.5) * 20)));
+        }
+    }
+    
+    // Update temperature chart
+    if (charts.temperature) {
+        charts.temperature.data.labels = hourlyLabels;
+        charts.temperature.data.datasets[0].data = temperatureData;
+        charts.temperature.update('none');
+    }
+    
+    // Update wind chart
+    if (charts.wind) {
+        charts.wind.data.labels = hourlyLabels;
+        charts.wind.data.datasets[0].data = windSpeedData;
+        
+        // Update precipitation dataset if it exists
+        if (charts.wind.data.datasets[1]) {
+            charts.wind.data.datasets[1].data = precipitationData;
+        }
+        
+        charts.wind.update('none');
+    }
+    
+    console.log('✅ Weather charts updated with API data');
 }
 
 // Load sample weather data
@@ -929,6 +1112,14 @@ function loadSampleWeatherData(location = 'London,GB') {
     document.getElementById('pressure').textContent = '1013';
     document.getElementById('uvIndex').textContent = '6';
     document.getElementById('rainChance').textContent = weather.precipitationChance;
+    
+    // Update current weather icon based on condition
+    const currentIconElement = document.getElementById('currentIcon');
+    if (currentIconElement) {
+        const iconClass = getWeatherIcon(weather.condition);
+        currentIconElement.className = `fas ${iconClass}`;
+        console.log(`🌡️ Updated current weather icon to: ${iconClass} for condition: ${weather.condition}`);
+    }
     
     // Generate location-based forecast
     generateLocationForecast(location);
@@ -1773,7 +1964,8 @@ function displayRecentRides(rides) {
                                 <th>Distance</th>
                                 <th>Duration</th>
                                 <th>Calories</th>
-                                <th>Speed</th>
+                                <th>avg Speed</th>
+                                <th>Elevation gain</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1784,6 +1976,7 @@ function displayRecentRides(rides) {
                                     <td>${ride.duration}</td>
                                     <td>${ride.calories} cal</td>
                                     <td>${ride.avgSpeed} km/h</td>
+                                    <td>${ride.elevationGain || 0} m</td>
                                 </tr>
                             `).join('')}
                         </tbody>

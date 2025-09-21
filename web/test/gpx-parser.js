@@ -210,13 +210,23 @@ class GPXParser {
                 minElevation = Math.min(minElevation, curr.elevation);
             }
 
-            // Calculate speed and time
+            // Calculate speed and time with improved filtering
             if (prev.time && curr.time) {
                 const timeDiff = (curr.time - prev.time) / 1000; // seconds
-                // Correct formula: distance (km) / time (hours) = km/h
-                const speed = timeDiff > 0 ? (segmentDistance * 3600) / timeDiff : 0; // km/h
                 
-                if (speed > 0 && speed < 100) { // Filter unrealistic speeds
+                // Skip if time difference is too small (GPS noise) or too large (stopped)
+                if (timeDiff < 2 || timeDiff > 300) {
+                    continue;
+                }
+                
+                // Calculate speed: distance (km) / time (hours) = km/h
+                const speed = (segmentDistance * 3600) / timeDiff;
+                
+                // More realistic speed filtering for cycling:
+                // - Minimum 1 km/h (to exclude near-stationary points)
+                // - Maximum 70 km/h (reasonable for cycling, including downhills)
+                // - Filter out segments with very small distances (GPS noise)
+                if (speed >= 1 && speed <= 70 && segmentDistance >= 0.002) { // 0.002 km = 2 meters minimum
                     speeds.push(speed);
                     maxSpeed = Math.max(maxSpeed, speed);
                     movingTime += timeDiff;
@@ -395,10 +405,17 @@ class GPXParser {
 
             if (prev.time && curr.time) {
                 const timeDiff = (curr.time - prev.time) / 1000;
+                
+                // Use same filtering as in calculateSummary
+                if (timeDiff < 2 || timeDiff > 300) {
+                    continue;
+                }
+                
                 const distance = this.calculateDistance(prev, curr);
-                const speed = timeDiff > 0 ? (distance * 3600) / timeDiff : 0;
+                const speed = (distance * 3600) / timeDiff;
 
-                if (speed > 0 && speed < 100) {
+                // Apply same realistic speed filtering
+                if (speed >= 1 && speed <= 70 && distance >= 0.002) {
                     totalPoints++;
                     if (speed < 15) zones['Recovery (0-15 km/h)']++;
                     else if (speed < 25) zones['Endurance (15-25 km/h)']++;

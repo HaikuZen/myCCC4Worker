@@ -45,6 +45,9 @@ ehthumbs.db
 # IDE
 .idea/
 
+# wrangler
+.wrangler/
+
 # Temporary files
 tmp/
 temp/

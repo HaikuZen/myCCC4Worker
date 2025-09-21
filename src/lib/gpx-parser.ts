@@ -67,6 +67,12 @@ interface Segment {
   maxGradient: number
 }
 
+interface ElevationCalculationOptions {
+  minThreshold?: number           // Minimum elevation change to count (meters)
+  smoothingWindow?: number        // Moving average window size
+  maxElevationChangeRate?: number // Maximum elevation change per data point (meters)
+}
+
 interface GPXData {
   metadata: {
     name: string
@@ -246,6 +252,107 @@ export class GPXParser {
   }
 
   /**
+   * Improved elevation gain calculation with GPS noise filtering
+   * 
+   * This algorithm provides more accurate results than simple point-to-point
+   * differences by filtering out GPS noise and unrealistic elevation changes.
+   */
+  private calculateElevationGainImproved(
+    points: TrackPoint[], 
+    options: ElevationCalculationOptions = {}
+  ): { elevationGain: number; elevationLoss: number } {
+    const {
+      minThreshold = 3,           // Minimum elevation change to count (meters)
+      smoothingWindow = 3,        // Moving average window size  
+      maxElevationChangeRate = 50 // Maximum elevation change per data point (meters)
+    } = options
+
+    // Extract elevation points
+    const elevationPoints = points
+      .filter(p => p.elevation !== undefined)
+      .map(p => p.elevation!)
+
+    if (elevationPoints.length < 2) {
+      return { elevationGain: 0, elevationLoss: 0 }
+    }
+
+    // Step 1: Apply smoothing to reduce GPS noise
+    const smoothedElevations = this.applySmoothingFilter(elevationPoints, smoothingWindow)
+
+    // Step 2: Remove unrealistic elevation changes
+    const filteredElevations = this.removeElevationOutliers(smoothedElevations, maxElevationChangeRate)
+
+    // Step 3: Calculate elevation gain/loss with minimum threshold
+    let totalElevationGain = 0
+    let totalElevationLoss = 0
+
+    for (let i = 1; i < filteredElevations.length; i++) {
+      const prevEle = filteredElevations[i - 1]
+      const currEle = filteredElevations[i]
+      
+      const elevationChange = currEle - prevEle
+      const absChange = Math.abs(elevationChange)
+      
+      // Only count changes above the threshold
+      if (absChange >= minThreshold) {
+        if (elevationChange > 0) {
+          totalElevationGain += elevationChange
+        } else {
+          totalElevationLoss += absChange
+        }
+      }
+    }
+
+    return {
+      elevationGain: totalElevationGain,
+      elevationLoss: totalElevationLoss
+    }
+  }
+
+  /**
+   * Apply moving average smoothing to elevation data
+   */
+  private applySmoothingFilter(elevations: number[], windowSize: number): number[] {
+    if (windowSize <= 1) return [...elevations]
+    
+    const smoothed: number[] = []
+    const halfWindow = Math.floor(windowSize / 2)
+    
+    for (let i = 0; i < elevations.length; i++) {
+      const start = Math.max(0, i - halfWindow)
+      const end = Math.min(elevations.length, i + halfWindow + 1)
+      const window = elevations.slice(start, end)
+      const average = window.reduce((sum, val) => sum + val, 0) / window.length
+      smoothed.push(average)
+    }
+    
+    return smoothed
+  }
+
+  /**
+   * Remove unrealistic elevation changes (GPS errors)
+   */
+  private removeElevationOutliers(elevations: number[], maxChangeRate: number): number[] {
+    const filtered = [elevations[0]] // Keep first point
+    
+    for (let i = 1; i < elevations.length; i++) {
+      const prevEle = filtered[filtered.length - 1]
+      const currEle = elevations[i]
+      const change = Math.abs(currEle - prevEle)
+      
+      if (change <= maxChangeRate) {
+        filtered.push(currEle)
+      } else {
+        // Use interpolated value instead of the outlier
+        const interpolated = prevEle + (currEle - prevEle) * 0.5
+        filtered.push(interpolated)
+      }
+    }
+    
+    return filtered
+  }
+
+  /**
    * Calculate comprehensive ride summary
    */
   private calculateSummary(points: TrackPoint[]): Summary {
@@ -263,8 +370,6 @@ export class GPXParser {
 
     const validPoints = points.filter(p => p.lat && p.lon)
     let totalDistance = 0
-    let totalElevationGain = 0
-    let totalElevationLoss = 0
     let maxSpeed = 0
     let maxElevation = -Infinity
     let minElevation = Infinity
@@ -272,6 +377,11 @@ export class GPXParser {
     const speeds: number[] = []
     const elevations: number[] = []
     const validTimePoints = validPoints.filter(p => p.time)
+
+    // Calculate elevation gain/loss using improved algorithm
+    const elevationResults = this.calculateElevationGainImproved(validPoints)
+    const totalElevationGain = elevationResults.elevationGain
+    const totalElevationLoss = elevationResults.elevationLoss
 
     for (let i = 1; i < validPoints.length; i++) {
       const prev = validPoints[i - 1]
@@ -281,15 +391,8 @@ export class GPXParser {
       const segmentDistance = this.calculateDistance(prev, curr)
       totalDistance += segmentDistance
 
-      // Calculate elevation changes
+      // Track elevation range (using original values)
       if (prev.elevation !== undefined && curr.elevation !== undefined) {
-        const elevationChange = curr.elevation - prev.elevation
-        if (elevationChange > 0) {
-          totalElevationGain += elevationChange
-        } else {
-          totalElevationLoss += Math.abs(elevationChange)
-        }
-
         maxElevation = Math.max(maxElevation, curr.elevation)
         minElevation = Math.min(minElevation, curr.elevation)
         elevations.push(curr.elevation)
