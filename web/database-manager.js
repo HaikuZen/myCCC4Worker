@@ -182,8 +182,12 @@ function displayTableData(tableName, data) {
         html += '<tr>';
         columns.forEach(col => {
             let value = row[col];
-            if (value === null) value = '<span class="text-base-content/50 italic">null</span>';
-            else if (typeof value === 'string' && value.length > 50) {
+            if (value === null) {
+                value = '<span class="text-base-content/50 italic">null</span>';
+            } else if (col === 'gpx_data' && typeof value === 'string' && value.includes('<i class="fas')) {
+                // Allow HTML rendering for GPX data field icons
+                value = value;
+            } else if (typeof value === 'string' && value.length > 50) {
                 value = `<span title="${escapeHtml(value)}">${escapeHtml(value.substring(0, 50))}...</span>`;
             } else {
                 value = escapeHtml(String(value));

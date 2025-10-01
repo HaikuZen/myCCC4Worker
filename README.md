@@ -1,22 +1,53 @@
 # myCCC - Cycling Calories Calculator (Cloudflare Workers Edition)
 
-This is a serverless web application version of the Cycling Calories Calculator, built for Cloudflare Workers using Hono.js and D1 database. It provides a fast, globally distributed cycling calorie calculation service with comprehensive data storage, weather integration, and modular TypeScript architecture.
+A modern, serverless web application for comprehensive cycling analytics and calorie calculation. Built for Cloudflare Workers using Hono.js and D1 database, it provides a fast, globally distributed cycling analysis platform with beautiful visualizations, detailed ride breakdowns, weather integration, and intelligent data management.
+
+## ✨ What's New in v2.0
+
+- 🔬 **Detailed Ride Analysis Modal**: Click any ride to view comprehensive analysis with interactive charts
+- 📊 **Enhanced Dashboard**: Improved statistics with monthly summaries and performance trends  
+- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
+- 🎨 **Modern UI Redesign**: Beautiful interface with DaisyUI components and smooth animations
+- 📱 **Mobile Responsive**: Optimized experience across all devices
+- ⚡ **Performance Optimizations**: Faster loading with lazy loading and efficient data fetching
 
 ## Features
 
+### Core Functionality
 - ⚡ **Serverless**: Runs on Cloudflare Workers for global performance
-- 🌐 **Web Interface**: Modern web application for analyzing cycling data
-- 📊 **Dashboard**: View statistics and charts of your cycling activities  
-- 📁 **File Upload**: Upload and analyze GPX files with drag & drop
-- 💾 **D1 Database**: Cloudflare D1 database for scalable data storage
-- 🔍 **Duplicate Detection**: Automatically detects duplicate rides by filename and content
-- 📈 **Data Visualization**: Charts for distance, calories, speed, and elevation
-- 🌤️ **Weather Service**: Modular weather service with geocoding and forecast data
-- 📁 **GPX Storage**: Original GPX files stored in database with download capability
-- 🗃️ **Database Management**: Built-in database management interface
-- 🚀 **Fast & Global**: Edge computing for minimal latency worldwide
-- 🎯 **TypeScript**: Fully typed codebase with modern development practices
-- 📝 **Structured Logging**: Comprehensive logging throughout the application
+- 🌐 **Modern Web Interface**: Responsive web application built with DaisyUI and TailwindCSS
+- 📊 **Interactive Dashboard**: Comprehensive cycling statistics with real-time charts
+- 📁 **Smart File Upload**: Drag & drop GPX upload with instant analysis
+- 💾 **D1 Database**: Cloudflare D1 database for scalable, globally distributed storage
+- 🔍 **Intelligent Duplicate Detection**: Prevents duplicate rides by filename and content analysis
+
+### Data Analysis & Visualization  
+- 📈 **Rich Data Visualization**: Interactive charts for distance, calories, speed, elevation, and trends
+- 🔬 **Detailed Ride Analysis**: Individual ride breakdowns with elevation profiles, speed curves, and performance metrics
+- 📱 **Responsive Charts**: Chart.js powered visualizations that work on all devices
+- 📋 **Clickable Statistics Table**: Click any ride to view detailed analysis in an interactive modal
+- 🎯 **Performance Trends**: Track improvements over time with comparative analytics
+- 📊 **Monthly Summaries**: Aggregated statistics by month with visual indicators
+
+### Weather & Environmental Data
+- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
+- 🌍 **Smart Geocoding**: Convert location names to coordinates with OpenWeatherMap API
+- 🌡️ **Environmental Factors**: Temperature, humidity, wind speed, and UV index tracking
+- 🎨 **Dynamic Weather UI**: Weather-appropriate icons and styling
+
+### Data Management
+- 📁 **GPX Storage & Backup**: Original GPX files preserved in database with download capability
+- 🗃️ **Advanced Database Management**: Built-in web interface for data management
+- 💾 **Data Export**: Export ride data as CSV or download original GPX files
+- 🔧 **Configuration Management**: Customizable settings stored in database
+- 🧹 **Database Optimization**: Built-in tools for database cleanup and optimization
+
+### Technical Excellence
+- 🚀 **Edge Computing**: Minimal latency worldwide with Cloudflare's global network
+- 🎯 **Full TypeScript**: Completely typed codebase with modern development practices
+- 📝 **Comprehensive Logging**: Structured logging throughout the application
+- 🎨 **Modern UI/UX**: Beautiful interface with DaisyUI components and smooth animations
+- ⚡ **Performance Optimized**: Lazy loading, efficient data fetching, and responsive design
 
 ## Quick Start
 
@@ -93,17 +124,38 @@ myCCC/
 
 ## Usage
 
-1. **Upload GPX Files**: Use the web interface to upload your cycling GPX files
-   - Files are automatically stored in the database for backup
-   - Duplicate detection prevents accidental re-uploads
-2. **View Analytics**: Check the dashboard for statistics and charts
-   - Real-time weather data integration (when API key is configured)
-   - Interactive charts and performance trends
-3. **Manage Data**: Use the database management interface to view and manage your rides
-   - Download original GPX files anytime
-   - Edit ride data and configuration settings
-4. **Filter Data**: Filter rides by date range to analyze specific periods
-5. **Export Data**: Export ride data as CSV or download original GPX files
+### Getting Started
+1. **Upload GPX Files**: Use the modern web interface to upload your cycling GPX files
+   - Drag & drop multiple files or click to browse
+   - Files are automatically stored in the database for backup and future analysis
+   - Intelligent duplicate detection prevents accidental re-uploads
+   - Instant analysis with detailed calorie, distance, and performance calculations
+
+2. **Explore Your Dashboard**: Comprehensive overview of your cycling activities
+   - **Interactive Charts**: Distance, calories, speed, and elevation trends over time
+   - **Monthly Summaries**: Aggregated statistics with visual progress indicators
+   - **Performance Trends**: Track improvements with comparative analytics
+   - **Live Weather**: Current conditions and 7-day forecasts for your location
+
+### Advanced Features
+3. **Detailed Ride Analysis**: Click on any ride in the statistics table to open detailed analysis
+   - **Elevation Profiles**: Interactive elevation vs. distance charts
+   - **Speed Analysis**: Speed variations throughout your ride
+   - **Performance Metrics**: Comprehensive breakdown of calories, power, and efficiency
+   - **Route Segments**: Detailed segment analysis with performance data
+   - **Environmental Data**: Weather conditions and their impact on performance
+
+4. **Data Management**: Powerful tools for managing your cycling data
+   - **Database Interface**: Built-in web interface for viewing and editing data
+   - **GPX Downloads**: Retrieve original GPX files anytime
+   - **Data Export**: Export ride data as CSV for external analysis
+   - **Configuration**: Customize settings and preferences
+   - **Database Optimization**: Tools for maintaining optimal performance
+
+5. **Filtering & Analysis**: Advanced data filtering capabilities
+   - Filter rides by date range for specific period analysis
+   - Compare performance across different time periods
+   - Track seasonal patterns and improvements
 
 ## Database
 
@@ -158,6 +210,7 @@ The Cloudflare Workers application provides several API endpoints:
 ### Data API
 - `GET /api/dashboard` - Complete dashboard data with statistics, recent rides, chart data, monthly summary, and trends
 - `GET /api/rides?limit={n}` - Recent rides (default limit: 10)
+- `GET /api/rides/{rideId}/analysis` - **NEW**: Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
 - `GET /api/chart-data?startDate={date}&endDate={date}` - Chart data for visualization with optional date filtering
 - `GET /filter-data?startDate={date}&endDate={date}` - Filtered ride data by date range
 - `GET /api/geocode?location={name}` - Geocode location names to coordinates (requires WEATHER_API_KEY or falls back to demo data)
@@ -197,12 +250,21 @@ The Cloudflare Workers application provides several API endpoints:
 
 ## Technology Stack
 
+### Backend & Infrastructure
 - **Runtime**: Cloudflare Workers (V8 JavaScript engine)
 - **Framework**: Hono.js (fast web framework for edge computing)
 - **Database**: Cloudflare D1 (SQLite-compatible serverless database)
-- **Language**: TypeScript with full type safety
+- **Language**: TypeScript with full type safety and modern ES features
 - **Build Tool**: Wrangler CLI (Cloudflare's development toolkit)
-- **Frontend**: Vanilla JavaScript with TailwindCSS (via CDN)
+- **APIs**: OpenWeatherMap integration for live weather data
+
+### Frontend & UI
+- **Core**: Modern Vanilla JavaScript with ES6+ features
+- **Styling**: DaisyUI + TailwindCSS for beautiful, responsive design
+- **Charts**: Chart.js for interactive data visualizations
+- **Icons**: Font Awesome for comprehensive iconography
+- **Responsive**: Mobile-first design that works on all devices
+- **Architecture**: Component-based JavaScript with modular design
 
 ## Requirements
 

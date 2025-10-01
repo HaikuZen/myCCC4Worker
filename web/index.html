@@ -570,6 +570,132 @@
         </section>
     </div>
 
+    <!-- Ride Analysis Modal -->
+    <input type="checkbox" id="rideAnalysisModalToggle" class="modal-toggle" />
+    <div id="rideAnalysisModal" class="modal" role="dialog">
+        <div class="modal-box w-11/12 max-w-7xl h-5/6 max-h-screen overflow-y-auto">
+            <label for="rideAnalysisModalToggle" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</label>
+            
+            <!-- Modal Header -->
+            <div class="flex items-center mb-6">
+                <i class="fas fa-bicycle text-primary text-2xl mr-3"></i>
+                <div>
+                    <h3 class="font-bold text-2xl" id="rideAnalysisTitle">Ride Analysis</h3>
+                    <p class="text-base-content/70" id="rideAnalysisSubtitle">Loading ride data...</p>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="rideAnalysisLoading" class="text-center py-12">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <p class="mt-4 text-base-content/70">Analyzing ride data...</p>
+            </div>
+
+            <!-- Analysis Content -->
+            <div id="rideAnalysisContent" class="hidden">
+                <!-- Basic Statistics -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-tachometer-alt text-primary mr-2"></i>
+                        <h4 class="text-xl font-semibold">Ride Summary</h4>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="rideBasicStats">
+                        <!-- Stats will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-chart-area text-primary mr-2"></i>
+                        <h4 class="text-xl font-semibold">Ride Profile</h4>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card bg-base-50">
+                            <div class="card-body">
+                                <h5 class="card-title">Elevation Profile</h5>
+                                <div class="chart-container">
+                                    <canvas id="rideElevationChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card bg-base-50">
+                            <div class="card-body">
+                                <h5 class="card-title">Speed Profile</h5>
+                                <div class="chart-container">
+                                    <canvas id="rideSpeedChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Data Section (if available) -->
+                <div id="rideExtensionsSection" class="mb-6 hidden">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-heartbeat text-primary mr-2"></i>
+                        <h4 class="text-xl font-semibold">Additional Data</h4>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card bg-base-50" id="rideHeartRateContainer" style="display: none;">
+                            <div class="card-body">
+                                <h5 class="card-title">Heart Rate Profile</h5>
+                                <div class="chart-container">
+                                    <canvas id="rideHeartRateChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card bg-base-50" id="ridePowerContainer" style="display: none;">
+                            <div class="card-body">
+                                <h5 class="card-title">Power Profile</h5>
+                                <div class="chart-container">
+                                    <canvas id="ridePowerChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Analysis Table -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-microscope text-primary mr-2"></i>
+                        <h4 class="text-xl font-semibold">Detailed Analysis</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra w-full" id="rideDetailedAnalysis">
+                            <!-- Detailed info will be populated here -->
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Route Segments -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-road text-primary mr-2"></i>
+                        <h4 class="text-xl font-semibold">Route Segments</h4>
+                    </div>
+                    <div class="max-h-64 overflow-y-auto" id="rideSegmentsList">
+                        <!-- Segments will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-2">
+                    <button class="btn btn-outline" onclick="downloadRideGPX()">
+                        <i class="fas fa-download mr-2"></i>
+                        Download GPX
+                    </button>
+                    <label for="rideAnalysisModalToggle" class="btn btn-primary">
+                        <i class="fas fa-times mr-2"></i>
+                        Close
+                    </label>
+                </div>
+            </div>
+        </div>
+        <label class="modal-backdrop" for="rideAnalysisModalToggle">Close</label>
+    </div>
+
     <!-- Footer -->
     <footer class="footer footer-center bg-base-300 text-base-content p-4">
         <aside>

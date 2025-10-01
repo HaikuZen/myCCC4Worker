@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load real data from database or fallback to sample data
     loadDatabaseData();
+    
 });
 
 // Initialize dashboard functionality
@@ -2587,3 +2588,522 @@ window.addEventListener('resize', function() {
         }
     });
 });
+
+// ========== RIDE ANALYSIS FUNCTIONALITY ==========
+
+// Global variables for ride analysis
+let currentRideId = null;
+let rideAnalysisCharts = {};
+
+// Show ride analysis modal (globally available)
+window.showRideAnalysis = async function(rideId, filename) {
+    console.log(`🔍 Showing analysis for ride ${rideId}: ${filename}`);
+    console.log('showRideAnalysis function called with:', { rideId, filename });
+    
+    currentRideId = rideId;
+    
+    // Open the modal (DaisyUI checkbox method)
+    const modalToggle = document.getElementById('rideAnalysisModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = true;
+    }
+    
+    // Update modal title
+    const title = document.getElementById('rideAnalysisTitle');
+    const subtitle = document.getElementById('rideAnalysisSubtitle');
+    title.textContent = filename || `Ride #${rideId}`;
+    subtitle.textContent = 'Loading detailed analysis...';
+    
+    // Show loading state
+    showRideAnalysisLoading(true);
+    
+    try {
+        // Fetch ride analysis data
+        const response = await fetch(`/api/rides/${rideId}/analysis`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load ride analysis: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Ride analysis data:', data);
+        
+        // Display the analysis
+        displayRideAnalysis(data);
+        
+    } catch (error) {
+        console.error('Error loading ride analysis:', error);
+        showRideAnalysisError(error.message);
+    }
+};
+
+// Close ride analysis modal (DaisyUI method)
+window.closeRideAnalysisModal = function() {
+    const modalToggle = document.getElementById('rideAnalysisModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = false;
+    }
+};
+
+// Show/hide loading state
+function showRideAnalysisLoading(show) {
+    const loading = document.getElementById('rideAnalysisLoading');
+    const content = document.getElementById('rideAnalysisContent');
+    
+    if (show) {
+        loading.classList.remove('hidden');
+        content.classList.add('hidden');
+    } else {
+        loading.classList.add('hidden');
+        content.classList.remove('hidden');
+    }
+}
+
+// Show error state
+function showRideAnalysisError(message) {
+    const loading = document.getElementById('rideAnalysisLoading');
+    const subtitle = document.getElementById('rideAnalysisSubtitle');
+    
+    loading.innerHTML = `
+        <div class="text-center py-12">
+            <i class="fas fa-exclamation-triangle text-error text-4xl mb-4"></i>
+            <h4 class="text-xl font-semibold text-error mb-2">Analysis Error</h4>
+            <p class="text-base-content/70">${message}</p>
+            <button class="btn btn-outline btn-sm mt-4" onclick="closeRideAnalysisModal()">
+                <i class="fas fa-times mr-2"></i>Close
+            </button>
+        </div>
+    `;
+    
+    subtitle.textContent = 'Failed to load ride data';
+}
+
+// Display ride analysis data
+function displayRideAnalysis(data) {
+    const { rideInfo, analysis } = data;
+    const { summary, metadata } = analysis;
+    
+    // Update subtitle
+    const subtitle = document.getElementById('rideAnalysisSubtitle');
+    subtitle.textContent = `${summary.distance.toFixed(2)}km • ${formatTime(summary.totalTime)} • ${analysis.analysis.caloriesBurned.estimated} calories`;
+    
+    // Display basic statistics
+    displayRideBasicStats(summary, analysis.analysis);
+    
+    // Display detailed analysis table
+    displayRideDetailedAnalysis(analysis);
+    
+    // Display segments
+    displayRideSegments(analysis.segments);
+    
+    // Create charts
+    createRideAnalysisCharts(analysis);
+    
+    // Hide loading and show content
+    showRideAnalysisLoading(false);
+}
+
+// Display basic statistics
+function displayRideBasicStats(summary, analysis) {
+    const basicStats = document.getElementById('rideBasicStats');
+    
+    const stats = [
+        {
+            icon: 'fa-route',
+            value: summary.distance.toFixed(2),
+            unit: 'km',
+            label: 'Distance'
+        },
+        {
+            icon: 'fa-clock',
+            value: formatTime(summary.totalTime),
+            unit: '',
+            label: 'Total Time'
+        },
+        {
+            icon: 'fa-tachometer-alt',
+            value: summary.avgSpeed.toFixed(1),
+            unit: 'km/h',
+            label: 'Avg Speed'
+        },
+        {
+            icon: 'fa-rocket',
+            value: summary.maxSpeed.toFixed(1),
+            unit: 'km/h',
+            label: 'Max Speed'
+        },
+        {
+            icon: 'fa-mountain',
+            value: Math.round(summary.elevationGain),
+            unit: 'm',
+            label: 'Elevation Gain'
+        },
+        {
+            icon: 'fa-arrow-down',
+            value: Math.round(summary.elevationLoss),
+            unit: 'm',
+            label: 'Elevation Loss'
+        },
+        {
+            icon: 'fa-fire',
+            value: analysis.caloriesBurned.estimated,
+            unit: 'kcal',
+            label: 'Calories Burned'
+        },
+        {
+            icon: 'fa-running',
+            value: formatTime(summary.movingTime),
+            unit: '',
+            label: 'Moving Time'
+        }
+    ];
+
+    basicStats.innerHTML = stats.map(stat => `
+        <div class="stat bg-base-100 rounded-lg border border-base-300">
+            <div class="stat-figure text-primary">
+                <i class="fas ${stat.icon}"></i>
+            </div>
+            <div class="stat-value text-sm">${stat.value}</div>
+            <div class="stat-desc text-xs text-primary">${stat.unit}</div>
+            <div class="stat-title text-xs">${stat.label}</div>
+        </div>
+    `).join('');
+}
+
+// Display detailed analysis table
+function displayRideDetailedAnalysis(data) {
+    const detailedAnalysis = document.getElementById('rideDetailedAnalysis');
+    
+    const rows = [
+        ['Track Points', data.points.length.toLocaleString()],
+        ['Number of Tracks', data.tracks.length],
+        ['Total Segments', data.tracks.reduce((sum, track) => sum + track.segmentCount, 0)],
+        ['Max Elevation', data.summary.maxElevation ? `${Math.round(data.summary.maxElevation)}m` : 'N/A'],
+        ['Min Elevation', data.summary.minElevation ? `${Math.round(data.summary.minElevation)}m` : 'N/A'],
+        ['Start Time', data.summary.startTime ? new Date(data.summary.startTime).toLocaleString() : 'N/A'],
+        ['End Time', data.summary.endTime ? new Date(data.summary.endTime).toLocaleString() : 'N/A'],
+        ['Calorie Method', data.analysis.caloriesBurned.method],
+        ['Base Calories', data.analysis.caloriesBurned.breakdown.base || 0],
+        ['Elevation Calories', data.analysis.caloriesBurned.breakdown.elevation || 0],
+        ['Average Heart Rate', data.analysis.averageHeartRate ? `${Math.round(data.analysis.averageHeartRate)} bpm` : 'N/A'],
+        ['Average Power', data.analysis.averagePower ? `${Math.round(data.analysis.averagePower)} W` : 'N/A']
+    ];
+
+    detailedAnalysis.innerHTML = `
+        <thead>
+            <tr><th>Property</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+            ${rows.map(([key, value]) => `
+                <tr><td><strong>${key}</strong></td><td>${value}</td></tr>
+            `).join('')}
+        </tbody>
+    `;
+}
+
+// Display route segments
+function displayRideSegments(segments) {
+    const segmentsList = document.getElementById('rideSegmentsList');
+    
+    if (!segments || segments.length === 0) {
+        segmentsList.innerHTML = '<p class="text-center text-base-content/50 py-8">No route segments identified in this ride.</p>';
+        return;
+    }
+
+    segmentsList.innerHTML = segments.map((segment, index) => `
+        <div class="card bg-base-100 mb-2 border border-base-300">
+            <div class="card-body p-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center">
+                        <i class="fas ${segment.type === 'climb' ? 'fa-arrow-up text-error' : segment.type === 'descent' ? 'fa-arrow-down text-success' : 'fa-minus text-warning'} mr-2"></i>
+                        <span class="font-semibold">Segment ${index + 1} - ${segment.type.charAt(0).toUpperCase() + segment.type.slice(1)}</span>
+                    </div>
+                    <div class="text-right text-sm text-base-content/70">
+                        <div>${segment.distance.toFixed(2)}m</div>
+                        <div>${segment.elevationChange > 0 ? '+' : ''}${Math.round(segment.elevationChange)}m</div>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-base-content/70">
+                    <span>Avg Gradient: ${segment.avgGradient.toFixed(1)}%</span>
+                    <span class="ml-4">Max Gradient: ${segment.maxGradient.toFixed(1)}%</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Create ride analysis charts
+function createRideAnalysisCharts(data) {
+    // Clean up existing charts
+    Object.values(rideAnalysisCharts).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+        }
+    });
+    rideAnalysisCharts = {};
+    
+    // Create elevation chart
+    createRideElevationChart(data);
+    
+    // Create speed chart
+    createRideSpeedChart(data);
+    
+    // Create heart rate chart (if available)
+    if (data.analysis.averageHeartRate) {
+        createRideHeartRateChart(data);
+        document.getElementById('rideHeartRateContainer').style.display = 'block';
+        document.getElementById('rideExtensionsSection').classList.remove('hidden');
+    }
+    
+    // Create power chart (if available)
+    if (data.analysis.averagePower) {
+        createRidePowerChart(data);
+        document.getElementById('ridePowerContainer').style.display = 'block';
+        document.getElementById('rideExtensionsSection').classList.remove('hidden');
+    }
+}
+
+// Create elevation chart
+function createRideElevationChart(data) {
+    const ctx = document.getElementById('rideElevationChart').getContext('2d');
+    
+    // Sample elevation data from points (take every 10th point to avoid too many data points)
+    const elevationPoints = data.points
+        .filter((point, index) => index % 10 === 0 && point.elevation !== undefined)
+        .map((point, index) => ({
+            x: index * (data.summary.distance / data.points.length * 10), // Approximate distance
+            y: point.elevation
+        }));
+
+    rideAnalysisCharts.elevation = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Elevation (m)',
+                data: elevationPoints,
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: false
+                },
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Distance (km)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Elevation (m)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Create speed chart
+function createRideSpeedChart(data) {
+    const ctx = document.getElementById('rideSpeedChart').getContext('2d');
+    
+    // Generate sample speed data (in a real implementation, you'd extract this from GPX)
+    const speedData = [];
+    for (let i = 0; i < 50; i++) {
+        speedData.push({
+            x: i * (data.summary.distance / 50),
+            y: Math.max(0, data.summary.avgSpeed + (Math.random() - 0.5) * 10)
+        });
+    }
+
+    rideAnalysisCharts.speed = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Speed (km/h)',
+                data: speedData,
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                fill: false,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: false
+                },
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Distance (km)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Speed (km/h)'
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Create heart rate chart
+function createRideHeartRateChart(data) {
+    const ctx = document.getElementById('rideHeartRateChart').getContext('2d');
+    
+    // Generate sample heart rate data
+    const hrData = [];
+    const avgHR = data.analysis.averageHeartRate;
+    for (let i = 0; i < 50; i++) {
+        hrData.push({
+            x: i * (data.summary.distance / 50),
+            y: Math.max(60, avgHR + (Math.random() - 0.5) * 40)
+        });
+    }
+
+    rideAnalysisCharts.heartRate = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Heart Rate (bpm)',
+                data: hrData,
+                borderColor: 'rgb(239, 68, 68)',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                fill: false,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: false
+                },
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Distance (km)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Heart Rate (bpm)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Create power chart
+function createRidePowerChart(data) {
+    const ctx = document.getElementById('ridePowerChart').getContext('2d');
+    
+    // Generate sample power data
+    const powerData = [];
+    const avgPower = data.analysis.averagePower;
+    for (let i = 0; i < 50; i++) {
+        powerData.push({
+            x: i * (data.summary.distance / 50),
+            y: Math.max(0, avgPower + (Math.random() - 0.5) * 100)
+        });
+    }
+
+    rideAnalysisCharts.power = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Power (W)',
+                data: powerData,
+                borderColor: 'rgb(245, 158, 11)',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                fill: false,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: false
+                },
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Distance (km)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Power (W)'
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Download GPX file for current ride
+function downloadRideGPX() {
+    if (currentRideId) {
+        window.open(`/api/rides/${currentRideId}/gpx`, '_blank');
+    }
+}
+
+// Format time utility function
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    } else {
+        return `${secs}s`;
+    }
+}

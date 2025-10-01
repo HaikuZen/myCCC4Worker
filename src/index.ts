@@ -587,6 +587,46 @@ app.get('/api/rides/:rideId/gpx', async (c) => {
   }
 })
 
+// Ride analysis endpoint
+app.get('/api/rides/:rideId/analysis', async (c) => {
+  try {
+    const rideId = parseInt(c.req.param('rideId'))
+    
+    if (isNaN(rideId)) {
+      return c.json({ error: 'Invalid ride ID' }, 400)
+    }
+    
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    const gpxData = await dbService.getGpxData(rideId)
+    
+    if (!gpxData) {
+      return c.json({ error: 'GPX data not found for this ride' }, 404)
+    }
+    
+    // Re-analyze the GPX data to get comprehensive analysis
+    const gpxParser = new GPXParser()
+    const xmlData = await gpxParser.parseFromText(gpxData)
+    const riderWeight = await dbService.getRiderWeight()
+    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight)
+    
+    // Get basic ride info from database
+    const rides = await dbService.getRecentRides(1000)
+    const rideInfo = rides.find(r => r.id === rideId)
+    
+    return c.json({
+      rideId: rideId,
+      rideInfo: rideInfo,
+      analysis: analysisData
+    })
+  } catch (error) {
+    const log = createLogger('API:Ride:Analysis')
+    log.error('Error getting ride analysis:', error)
+    return c.json({ error: error.message }, 500)
+  }
+})
+
 // Configuration API endpoints
 app.get('/api/configuration', async (c) => {
   try {
@@ -823,17 +863,23 @@ function generateFilteredDataFromDB(filteredData: any, startDate: string, endDat
                                 <th>Calories</th>
                                 <th>Avg Speed</th>
                                 <th>Elevation</th>
+                                <th>Analysis</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${filteredData.rides.slice(0, 10).map(ride => `
-                                <tr>
+                                <tr class="hover:bg-base-200 cursor-pointer transition-colors ride-row" 
+                                    data-ride-id="${ride.id}" 
+                                    onclick="console.log('Row clicked:', ${ride.id}); showRideAnalysis(${ride.id}, ${ride.filename ? `'${ride.filename}'` : 'null'})">
                                     <td>${ride.date}</td>
                                     <td>${ride.distance} km</td>
                                     <td>${ride.duration}</td>
                                     <td>${ride.calories} cal</td>
                                     <td>${ride.avgSpeed} km/h</td>
                                     <td>${ride.elevationGain} m</td>
+                                    <td class="text-center">
+                                        <i class="fas fa-chart-line text-primary hover:opacity-100 transition-opacity" title="View detailed analysis"></i>
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>

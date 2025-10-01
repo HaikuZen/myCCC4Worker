@@ -915,19 +915,27 @@ function generateFilteredDataFromDB(filteredData, startDate, endDate) {
                                 <th>Calories</th>
                                 <th>Avg Speed</th>
                                 <th>Elevation</th>
+                                <th>Analysis</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredData.rides.slice(0, 10).map(ride => `
-                                <tr>
+                            ${filteredData.rides.slice(0, 10).map((ride, index) => {
+                                console.log(`Debug: Rendering ride ${index + 1}:`, { id: ride.id, filename: ride.filename });
+                                return `
+                                <tr class="hover:bg-base-200 cursor-pointer transition-colors ride-row" 
+                                    data-ride-id="${ride.id}" 
+                                    onclick="console.log('Row clicked:', ${ride.id}); showRideAnalysis(${ride.id}, ${ride.filename ? `'${ride.filename}'` : 'null'});">
                                     <td>${ride.date}</td>
                                     <td>${ride.distance} km</td>
                                     <td>${ride.duration}</td>
                                     <td>${ride.calories} cal</td>
                                     <td>${ride.avgSpeed} km/h</td>
                                     <td>${ride.elevationGain} m</td>
+                                    <td class="text-center">
+                                        <i class="fas fa-chart-line text-primary hover:opacity-100 transition-opacity" title="View detailed analysis"></i>
+                                    </td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 </div>

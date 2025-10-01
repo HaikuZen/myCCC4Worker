@@ -1387,11 +1387,26 @@ export class CyclingDatabase {
     
     try {
       const query = 'SELECT gpx_data FROM rides WHERE id = ?'
-      const result = await this.db.prepare(query).bind(rideId).first<{ gpx_data: Uint8Array }>()
+      const result = await this.db.prepare(query).bind(rideId).first<{ gpx_data: any }>()
       
-      if (result && result.gpx_data) {
-        // Convert Uint8Array back to string
-        return new TextDecoder().decode(result.gpx_data)
+      if (result && result.gpx_data) {        
+        // Handle different data types that might be returned from the database
+        if (typeof result.gpx_data === 'string') {
+          // Already a string, return as-is
+          return result.gpx_data
+        } else if (result.gpx_data instanceof Uint8Array) {
+          // Uint8Array, decode to string
+          return new TextDecoder().decode(result.gpx_data)
+        } else if (Array.isArray(result.gpx_data)) {
+          // Array of bytes, convert to Uint8Array first
+          return new TextDecoder().decode(new Uint8Array(result.gpx_data))
+        } else if (result.gpx_data instanceof ArrayBuffer) {
+          // ArrayBuffer, convert to Uint8Array first
+          return new TextDecoder().decode(new Uint8Array(result.gpx_data))
+        } else {
+          this.log.error('Unknown GPX data type:', typeof result.gpx_data, result.gpx_data)
+          return null
+        }
       }
       
       return null
@@ -1416,7 +1431,18 @@ export class CyclingDatabase {
     
     try {
       const query = `SELECT * FROM ${tableName} ORDER BY id DESC LIMIT 100`;
-      const rows = (await this.db.prepare(query).all()).results || [];
+      const rawRows = (await this.db.prepare(query).all()).results || [];
+      
+      // Process rows to handle GPX data field specially
+      const rows = rawRows.map(row => {
+        if (tableName === 'rides' && row.gpx_data) {
+          // Replace GPX data with an icon indicator
+          const processedRow = { ...row }
+          processedRow.gpx_data = '<i class="fas fa-file-code text-primary" title="GPX data available"></i>'
+          return processedRow
+        }
+        return row
+      })
       
       // Get column information
       const columns = (await this.db.prepare(`PRAGMA table_info(${tableName})`).all()).results || [];
@@ -1425,7 +1451,7 @@ export class CyclingDatabase {
     } catch (error) {
       console.error('Error getting table data:', error.message);
       throw error;
-}
+    }
   }
 
   /**
