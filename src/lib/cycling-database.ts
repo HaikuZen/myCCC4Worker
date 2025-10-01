@@ -49,6 +49,7 @@ interface ConfigDefault {
 interface DatabaseRow {
   id: number;
   gpx_filename: string;
+  gpx_data: Uint8Array | null;
   rider_weight: number;
   ride_date: string;
   distance: number;
@@ -193,6 +194,7 @@ export class CyclingDatabase {
         CREATE TABLE IF NOT EXISTS rides (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           gpx_filename TEXT,
+          gpx_data BLOB,
           rider_weight REAL DEFAULT 70,
           ride_date TEXT,
           distance REAL NOT NULL,
@@ -277,12 +279,12 @@ export class CyclingDatabase {
   /**
    * Save a ride calculation result to the database
    */
-  async saveRide(result: RideData, gpxFilename: string | null = null, riderWeight: number | null = null): Promise<number> {
+  async saveRide(result: RideData, gpxFilename: string | null = null, riderWeight: number | null = null, gpxData: string | null = null): Promise<number> {
     if (!this.isInitialized) await this.initialize();
 
     const insertRideSQL = `
       INSERT INTO rides (
-        gpx_filename, rider_weight, ride_date,
+        gpx_filename, gpx_data, rider_weight, ride_date,
         distance, duration, elevation_gain, average_speed,
         start_latitude, start_longitude,
         total_calories, base_calories, elevation_calories,
@@ -291,11 +293,12 @@ export class CyclingDatabase {
         wind_speed, wind_direction, humidity, temperature,
         pressure, weather_source,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const rideData = [
       gpxFilename,
+      gpxData ? new TextEncoder().encode(gpxData) : null,
       riderWeight,
       result.gpxData.startTime ? result.gpxData.startTime.toISOString() : null,
       result.gpxData.distance,
@@ -1026,12 +1029,12 @@ export class CyclingDatabase {
   /**
    * Save GPX analysis
    */
-  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70): Promise<number> {
+  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null): Promise<number> {
     if (!this.isInitialized) await this.initialize();
     
     const insertRideSQL = `
       INSERT INTO rides (
-        gpx_filename, rider_weight, ride_date,
+        gpx_filename, gpx_data, rider_weight, ride_date,
         distance, duration, elevation_gain, average_speed,
         start_latitude, start_longitude,
         total_calories, base_calories, elevation_calories,
@@ -1040,11 +1043,12 @@ export class CyclingDatabase {
         wind_speed, wind_direction, humidity, temperature,
         pressure, weather_source,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const rideData = [
       gpxFilename,
+      gpxData ? new TextEncoder().encode(gpxData) : null,
       riderWeight,
       analysisData.summary.startTime ? analysisData.summary.startTime.toISOString() : null,
       analysisData.summary.distance,
@@ -1373,6 +1377,28 @@ export class CyclingDatabase {
     }
     
     return hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins}m`
+  }
+
+  /**
+   * Get GPX file content by ride ID
+   */
+  async getGpxData(rideId: number): Promise<string | null> {
+    if (!this.isInitialized) await this.initialize()
+    
+    try {
+      const query = 'SELECT gpx_data FROM rides WHERE id = ?'
+      const result = await this.db.prepare(query).bind(rideId).first<{ gpx_data: Uint8Array }>()
+      
+      if (result && result.gpx_data) {
+        // Convert Uint8Array back to string
+        return new TextDecoder().decode(result.gpx_data)
+      }
+      
+      return null
+    } catch (error) {
+      this.log.error('Error getting GPX data:', error)
+      throw error
+    }
   }
 
   // ============= Database Management Functions =============

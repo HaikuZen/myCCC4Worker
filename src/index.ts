@@ -164,7 +164,7 @@ app.post('/upload', async (c) => {
     
     // Save to database
     log.info('💾 Saving to database...')
-    const rideId = await dbService.saveGPXAnalysis(data, fileName)
+    const rideId = await dbService.saveGPXAnalysis(data, fileName, riderWeight, fileContent)
     log.info(`✅ Saved ride analysis to database with ID: ${rideId}`)
     
     const fileSize = (file.size / 1024).toFixed(1)
@@ -208,7 +208,7 @@ app.post('/api/analyze', async (c) => {
        // Save to database
         const dbService = new DatabaseService(c.env.DB)
         await dbService.initialize()            
-        await dbService.saveGPXAnalysis(data, file.name)
+        await dbService.saveGPXAnalysis(data, file.name, 75, fileContent)
       } catch (dbError) {        
         log.warn('Failed to save to database:', dbError)
       }    
@@ -553,7 +553,39 @@ app.get('/api/weather', async (c) => {
 })
 
 
-
+// GPX download endpoint
+app.get('/api/rides/:rideId/gpx', async (c) => {
+  try {
+    const rideId = parseInt(c.req.param('rideId'))
+    
+    if (isNaN(rideId)) {
+      return c.json({ error: 'Invalid ride ID' }, 400)
+    }
+    
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    const gpxData = await dbService.getGpxData(rideId)
+    
+    if (!gpxData) {
+      return c.json({ error: 'GPX data not found for this ride' }, 404)
+    }
+    
+    // Get ride information for filename
+    const rides = await dbService.getRecentRides(1000) // Get all to find the specific one
+    const ride = rides.find(r => r.id === rideId)
+    const filename = ride?.filename || `ride_${rideId}.gpx`
+    
+    return c.text(gpxData, 200, {
+      'Content-Type': 'application/gpx+xml',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    })
+  } catch (error) {
+    const log = createLogger('API:GPX:Download')
+    log.error('Error downloading GPX file:', error)
+    return c.json({ error: error.message }, 500)
+  }
+})
 
 // Configuration API endpoints
 app.get('/api/configuration', async (c) => {

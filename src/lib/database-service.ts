@@ -298,11 +298,11 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Save analyzed GPX data to database
    */
-  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70): Promise<number> {
+  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null): Promise<number> {
     
     
     try {
-      const rideId = await super.saveGPXAnalysis(analysisData, gpxFilename, riderWeight)
+      const rideId = await super.saveGPXAnalysis(analysisData, gpxFilename, riderWeight, gpxData)
       this.logger.info(`💾 Saved ride analysis to database with ID: ${rideId}`)
       return rideId
     } catch (error) {
@@ -431,5 +431,17 @@ export class DatabaseService extends CyclingDatabase{
     }
     
     return hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins}m`
+  }
+
+  /**
+   * Get GPX file content by ride ID
+   */
+  async getGpxData(rideId: number): Promise<string | null> {
+    try {
+      return await super.getGpxData(rideId)
+    } catch (error) {
+      this.logger.error('Error getting GPX data:', error)
+      throw error
+    }
   }
 }

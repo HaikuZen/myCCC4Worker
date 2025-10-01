@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS rides (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     gpx_filename TEXT,
+    gpx_data BLOB,
     rider_weight REAL NOT NULL,
     ride_date TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
