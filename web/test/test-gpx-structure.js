@@ -36,6 +36,14 @@ async function testGPXStructure() {
             console.log('Elevation Gain:', result.summary.elevationGain, 'm');
             console.log('elevation Loss:', result.summary.elevationLoss, 'm');
             console.log('Start Time:', result.summary.startTime);
+            console.log('End Time:', result.summary.endTime);
+            console.log('Max Speed:', result.summary.maxSpeed, 'km/h');
+            console.log('Max Elevation:', result.summary.maxElevation, 'm');
+            console.log('Min Elevation:', result.summary.minElevation, 'm');    
+            console.log('Total Ascent:', result.summary.totalAscent, 'm');
+            console.log('Total Descent:', result.summary.totalDescent, 'm');        
+            console.log('Number of Segments:', result.summary.segments ? result.summary.segments.length : 0);   
+
         }
         
         if (result.analysis && result.analysis.caloriesBurned) {

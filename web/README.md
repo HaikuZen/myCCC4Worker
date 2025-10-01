@@ -63,6 +63,69 @@ npm run web-dev  # Uses nodemon for auto-restart
 - 📈 **Advanced Analytics** with date filtering and trend analysis
 - 🗄️ **Database Browser** for direct data access and management
 
+## ⛰️ Elevation Gain Algorithm
+
+The application uses a sophisticated elevation gain calculation algorithm that processes GPX elevation data with noise filtering and realistic speed limits to provide accurate climbing metrics.
+
+### **Algorithm Overview**
+
+The elevation gain calculation works by:
+1. **Data Filtering**: Removes GPS noise and unrealistic data points
+2. **Segment Analysis**: Processes elevation changes between consecutive GPS points
+3. **Cumulative Calculation**: Sums only positive elevation changes (climbing)
+
+### **Key Features**
+
+- **GPS Noise Filtering**: Filters out time segments < 2 seconds or > 5 minutes to eliminate GPS accuracy issues
+- **Distance Validation**: Ignores segments shorter than 2 meters to reduce GPS drift impact
+- **Speed Limits**: Realistic speed filtering (1-70 km/h) removes GPS errors that create impossible speeds
+- **Elevation Smoothing**: Only counts elevation changes when both previous and current points have valid elevation data
+
+### **Technical Implementation**
+
+```javascript
+// Core elevation gain calculation
+if (prev.elevation !== null && curr.elevation !== null) {
+    const elevationChange = curr.elevation - prev.elevation;
+    if (elevationChange > 0) {
+        totalElevationGain += elevationChange; // Only sum positive changes
+    } else {
+        totalElevationLoss += Math.abs(elevationChange); // Track descents separately
+    }
+}
+```
+
+### **Speed and Time Filtering**
+
+To ensure elevation data quality, the algorithm applies realistic constraints:
+
+- **Time Filtering**: `if (timeDiff < 2 || timeDiff > 300) continue;`
+- **Speed Filtering**: `if (speed >= 1 && speed <= 70 && segmentDistance >= 0.002)`
+- **Distance Filtering**: Minimum segment distance of 2 meters
+
+### **Benefits**
+
+- **Accuracy**: Eliminates GPS noise that can artificially inflate elevation gain
+- **Consistency**: Provides reliable elevation metrics across different GPS devices
+- **Performance**: Efficient processing of large GPX files with thousands of data points
+- **Realism**: Speed filtering ensures only realistic cycling segments contribute to elevation calculations
+
+### **Display in Interface**
+
+Elevation gain appears in multiple places:
+- 📊 **Dashboard Summary**: Total elevation climbed across all rides
+- 📋 **Recent Rides Table**: Elevation gain column showing meters climbed per ride
+- 📈 **Detailed Analysis**: Elevation profile charts and segment breakdowns
+- 🔥 **Calorie Calculations**: Higher elevation gain increases estimated calories burned
+
+### **Accuracy Notes**
+
+- **GPS Limitations**: Elevation accuracy depends on GPS device quality and satellite reception
+- **Barometric Data**: Some devices provide barometric elevation which is more accurate than GPS elevation
+- **Smoothing Trade-offs**: Filtering removes noise but may slightly underestimate elevation gain on very steep, short climbs
+
+The algorithm prioritizes accuracy and consistency over raw GPS data, providing cyclists with reliable elevation metrics for training analysis and performance tracking.
+
 ## 🔗 API Endpoints
 
 ### **Core Functionality**

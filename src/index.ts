@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger as honoLogger } from 'hono/logger'
+import { logger as honoLogger, logger } from 'hono/logger'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { GPXParser } from './lib/gpx-parser'
 import { DatabaseService } from './lib/database-service'
@@ -134,10 +134,10 @@ app.post('/upload', async (c) => {
         </div>
       `, 409)
     }
-    
+    const riderWeight = await dbService.getRiderWeight()
     // Parse the GPX file from text content
     log.info('📋 Parsing GPX file:', fileName)
-    const data = await gpxParser.parseFromText(fileContent)
+    const data = await gpxParser.parseFromText(fileContent, riderWeight)
     log.info('✅ GPX file parsed successfully')
     
     // Do a content-based duplicate check
@@ -182,30 +182,36 @@ app.post('/upload', async (c) => {
 
 // API endpoint for CLI integration
 app.post('/api/analyze', async (c) => {
+  const log = createLogger('API:Analyze')
   try {
     const formData = await c.req.formData()
     const file = formData.get('gpxFile') as File
+
     
+    log.debug(`Received file: ${file ? file.name : 'none'}`) 
+    
+    const skipSaveToDB = c.req.query('skipSaveToDB') != null
+
     if (!file) {
       return c.json({ error: 'No file uploaded' }, 400)
     }
     
     const fileContent = await file.text()
-    const data = await gpxParser.parseFromText(fileContent)
+    const data = await gpxParser.parseFromText(fileContent, 75) // Default rider weight 75kg
     
-    // Save to database
-    const dbService = new DatabaseService(c.env.DB)
-    await dbService.initialize()
-    
-    try {
-      await dbService.saveGPXAnalysis(data, file.name)
-    } catch (dbError) {
-      const log = createLogger('API:Analyze')
-      log.warn('Failed to save to database:', dbError)
-    }
-    
+
+    if(!skipSaveToDB) 
+      try {
+       // Save to database
+        const dbService = new DatabaseService(c.env.DB)
+        await dbService.initialize()            
+        await dbService.saveGPXAnalysis(data, file.name)
+      } catch (dbError) {        
+        log.warn('Failed to save to database:', dbError)
+      }    
     return c.json(data)
   } catch (error) {
+    log.error('Error analyzing GPX file:', error) 
     return c.json({ error: error.message }, 500)
   }
 })
@@ -1050,13 +1056,148 @@ function generateFilteredData(startDate: string, endDate: string): string {
 }
 
 function generateFilteredDataFromDB(filteredData: any, startDate: string, endDate: string): string {
-  // Implementation similar to the original but simplified for this example
-  return `
-    <div class="alert alert-success mb-6">
-      <i class="fas fa-check-circle mr-2"></i>
-      <span>Found ${filteredData.rides.length} rides</span>
-    </div>
-  `
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    
+    const { summary } = filteredData;
+    
+    if (!summary || filteredData.rides.length === 0) {
+        return `
+            <div class="alert alert-info mb-6">
+                <i class="fas fa-info-circle mr-2"></i>
+                <span>No rides found from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}</span>
+            </div>
+            
+            <div class="text-center py-8">
+                <i class="fas fa-bicycle text-6xl text-base-content/30 mb-4"></i>
+                <p class="text-lg text-base-content/70">No cycling data available for the selected period</p>
+                <p class="text-sm text-base-content/50">Upload some GPX files to see your progress!</p>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="stat bg-primary/10 rounded-lg">
+                <div class="stat-figure text-primary">
+                    <i class="fas fa-fire text-2xl"></i>
+                </div>
+                <div class="stat-title">Total Calories</div>
+                <div class="stat-value text-primary">${parseInt(summary.totalCalories).toLocaleString()}</div>
+                <div class="stat-desc">Burned in ${summary.count} ride${summary.count > 1 ? 's' : ''}</div>
+            </div>
+            
+            <div class="stat bg-secondary/10 rounded-lg">
+                <div class="stat-figure text-secondary">
+                    <i class="fas fa-route text-2xl"></i>
+                </div>
+                <div class="stat-title">Total Distance</div>
+                <div class="stat-value text-secondary">${summary.totalDistance} km</div>
+                <div class="stat-desc">Kilometers covered</div>
+            </div>
+            
+            <div class="stat bg-accent/10 rounded-lg">
+                <div class="stat-figure text-accent">
+                    <i class="fas fa-clock text-2xl"></i>
+                </div>
+                <div class="stat-title">Total Time</div>
+                <div class="stat-value text-accent">${summary.totalTime}</div>
+                <div class="stat-desc">Hours of cycling</div>
+            </div>
+            
+            <div class="stat bg-info/10 rounded-lg">
+                <div class="stat-figure text-info">
+                    <i class="fas fa-tachometer-alt text-2xl"></i>
+                </div>
+                <div class="stat-title">Avg Speed</div>
+                <div class="stat-value text-info">${summary.avgSpeed} km/h</div>
+                <div class="stat-desc">Average speed</div>
+            </div>
+        </div>
+
+        <div class="alert alert-success mb-6">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span>Found ${summary.count} ride${summary.count > 1 ? 's' : ''} from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}</span>
+        </div>
+        
+        <!-- Recent Rides List -->
+        <div class="card bg-base-50 mb-6">
+            <div class="card-body">
+                <h3 class="card-title mb-4">Rides in Selected Period</h3>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra w-full">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Distance</th>
+                                <th>Duration</th>
+                                <th>Calories</th>
+                                <th>Avg Speed</th>
+                                <th>Elevation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredData.rides.slice(0, 10).map(ride => `
+                                <tr>
+                                    <td>${ride.date}</td>
+                                    <td>${ride.distance} km</td>
+                                    <td>${ride.duration}</td>
+                                    <td>${ride.calories} cal</td>
+                                    <td>${ride.avgSpeed} km/h</td>
+                                    <td>${ride.elevationGain} m</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${filteredData.rides.length > 10 ? `
+                    <div class="text-center mt-4">
+                        <span class="text-sm text-base-content/70">Showing 10 of ${filteredData.rides.length} rides</span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card bg-base-50">
+                <div class="card-body">
+                    <h3 class="card-title">Calories Burned Over Time</h3>
+                    <div class="chart-container">
+                        <canvas id="caloriesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card bg-base-50">
+                <div class="card-body">
+                    <h3 class="card-title">Distance Covered</h3>
+                    <div class="chart-container">
+                        <canvas id="distanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            setTimeout(() => {
+                if (typeof loadDatabaseChartData === 'function') {
+                    // Load real data from database
+                    fetch('/api/chart-data?startDate=${startDate}&endDate=${endDate}')
+                        .then(response => response.json())
+                        .then(data => loadDatabaseChartData(data))
+                        .catch(() => {
+                            // Fallback to sample data
+                            if (typeof loadSampleChartData === 'function') {
+                                loadSampleChartData();
+                            }
+                        });
+                } else if (typeof loadSampleChartData === 'function') {
+                    loadSampleChartData();
+                }
+            }, 100);
+        </script>
+    `;
 }
 
 export default app

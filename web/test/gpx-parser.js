@@ -4,6 +4,13 @@ const xml2js = require('xml2js');
 /**
  * Comprehensive GPX Parser for Cycling Analytics
  * Extracts detailed cycling data from GPX files including elevation, speed, and timing
+ * 
+ * Features:
+ * - Improved elevation gain calculation with GPS noise filtering
+ * - Realistic speed limits (1-70 km/h) for cycling analysis
+ * - Time-based filtering to remove GPS accuracy issues
+ * - Distance validation to eliminate GPS drift
+ * - Accurate average and maximum speed calculations
  */
 class GPXParser {
     constructor() {
@@ -169,8 +176,137 @@ class GPXParser {
         return parsed;
     }
 
+        /**
+     * Calculate elevation gain with improved GPS noise filtering
+     * Implements sophisticated filtering to provide accurate elevation metrics
+     * @param {Array} points - Array of GPS track points with elevation data
+     * @returns {Object} Elevation analysis with gain, loss, and filtering stats
+     */
+    calculateElevationGainImproved(points) {
+        if (!points || points.length < 2) {
+            return {
+                elevationGain: 0,
+                elevationLoss: 0,
+                maxElevation: null,
+                minElevation: null,
+                validSegments: 0,
+                filteredSegments: 0,
+                filteringEfficiency: 0
+            };
+        }
+
+        const validPoints = points.filter(p => p.lat && p.lon && p.elevation !== null);
+        
+        if (validPoints.length < 2) {
+            return {
+                elevationGain: 0,
+                elevationLoss: 0,
+                maxElevation: validPoints.length > 0 ? validPoints[0].elevation : null,
+                minElevation: validPoints.length > 0 ? validPoints[0].elevation : null,
+                validSegments: 0,
+                filteredSegments: 0,
+                filteringEfficiency: 0
+            };
+        }
+
+        let totalElevationGain = 0;
+        let totalElevationLoss = 0;
+        let maxElevation = validPoints[0].elevation;
+        let minElevation = validPoints[0].elevation;
+        let validSegments = 0;
+        let filteredSegments = 0;
+
+        // Apply multi-layer filtering for GPS noise reduction
+        for (let i = 1; i < validPoints.length; i++) {
+            const prev = validPoints[i - 1];
+            const curr = validPoints[i];
+
+            // Layer 1: Time-based filtering
+            let timeFiltered = false;
+            if (prev.time && curr.time) {
+                const timeDiff = (curr.time - prev.time) / 1000; // seconds
+                
+                // Filter out segments with unrealistic time intervals
+                if (timeDiff < 2 || timeDiff > 300) {
+                    filteredSegments++;
+                    timeFiltered = true;
+                    continue;
+                }
+            }
+
+            // Layer 2: Distance-based filtering (if we have coordinates)
+            let distanceFiltered = false;
+            if (!timeFiltered && prev.lat && prev.lon && curr.lat && curr.lon) {
+                const distance = this.calculateDistance(prev, curr);
+                
+                // Filter out segments with very small distances (GPS drift)
+                if (distance < 0.002) { // 2 meters minimum
+                    filteredSegments++;
+                    distanceFiltered = true;
+                    continue;
+                }
+                
+                // Layer 3: Speed-based filtering (if we have time data)
+                if (prev.time && curr.time) {
+                    const timeDiff = (curr.time - prev.time) / 1000;
+                    const speed = (distance * 3600) / timeDiff; // km/h
+                    
+                    // Filter out unrealistic speeds that indicate GPS errors
+                    if (speed < 1 || speed > 70) {
+                        filteredSegments++;
+                        continue;
+                    }
+                }
+            }
+
+            // Calculate elevation change for valid segments
+            const elevationChange = curr.elevation - prev.elevation;
+            
+            // Layer 4: Elevation change validation
+            // Filter out extreme elevation changes that are likely GPS errors
+            const absoluteChange = Math.abs(elevationChange);
+            if (absoluteChange > 50) { // More than 50m change in one segment is suspicious
+                filteredSegments++;
+                continue;
+            }
+
+            // Valid segment - process elevation change
+            validSegments++;
+            
+            if (elevationChange > 0) {
+                totalElevationGain += elevationChange;
+            } else {
+                totalElevationLoss += absoluteChange;
+            }
+
+            // Track elevation extremes
+            maxElevation = Math.max(maxElevation, curr.elevation);
+            minElevation = Math.min(minElevation, curr.elevation);
+        }
+
+        const totalSegments = validSegments + filteredSegments;
+        const filteringEfficiency = totalSegments > 0 ? (filteredSegments / totalSegments) * 100 : 0;
+
+        return {
+            elevationGain: Math.round(totalElevationGain * 10) / 10, // Round to 1 decimal place
+            elevationLoss: Math.round(totalElevationLoss * 10) / 10,
+            maxElevation: maxElevation,
+            minElevation: minElevation,
+            validSegments: validSegments,
+            filteredSegments: filteredSegments,
+            filteringEfficiency: Math.round(filteringEfficiency * 10) / 10,
+            elevationRange: maxElevation - minElevation,
+            // Additional quality metrics
+            qualityMetrics: {
+                dataPoints: validPoints.length,
+                elevationDataCoverage: validPoints.length / points.length * 100,
+                averageElevation: validPoints.reduce((sum, p) => sum + p.elevation, 0) / validPoints.length
+            }
+        };
+    }
+
     /**
-     * Calculate comprehensive ride summary
+     * Calculate comprehensive ride summary with improved GPS noise filtering
      * @private
      */
     calculateSummary(points) {
@@ -179,13 +315,13 @@ class GPXParser {
         }
 
         const validPoints = points.filter(p => p.lat && p.lon);
+        
+        // Use improved elevation calculation method
+        const elevationAnalysis = this.calculateElevationGainImproved(points);
+        
         let totalDistance = 0;
-        let totalElevationGain = 0;
-        let totalElevationLoss = 0;
         let movingTime = 0;
         let maxSpeed = 0;
-        let maxElevation = -Infinity;
-        let minElevation = Infinity;
 
         const speeds = [];
         const elevations = [];
@@ -199,18 +335,12 @@ class GPXParser {
             const segmentDistance = this.calculateDistance(prev, curr);
             totalDistance += segmentDistance;
 
-            // Calculate elevation changes
-            if (prev.elevation !== null && curr.elevation !== null) {
-                const elevationChange = curr.elevation - prev.elevation;
-                if (elevationChange > 0) totalElevationGain += elevationChange;
-                else totalElevationLoss += Math.abs(elevationChange);
-
+            // Collect elevation data for additional analysis (already calculated in elevationAnalysis)
+            if (curr.elevation !== null) {
                 elevations.push(curr.elevation);
-                maxElevation = Math.max(maxElevation, curr.elevation);
-                minElevation = Math.min(minElevation, curr.elevation);
             }
 
-            // Calculate speed and time with improved filtering
+            // Calculate speed and time with improved filtering for GPS noise
             if (prev.time && curr.time) {
                 const timeDiff = (curr.time - prev.time) / 1000; // seconds
                 
@@ -254,17 +384,28 @@ class GPXParser {
             movingTime: movingTime, // seconds
             avgSpeed: finalAvgSpeed, // km/h (using total distance / moving time)
             maxSpeed: maxSpeed, // km/h
-            elevationGain: totalElevationGain, // meters
-            elevationLoss: totalElevationLoss, // meters
-            maxElevation: maxElevation === -Infinity ? null : maxElevation, // meters
-            minElevation: minElevation === Infinity ? null : minElevation, // meters
+            // Use improved elevation calculations
+            elevationGain: elevationAnalysis.elevationGain, // meters (filtered)
+            elevationLoss: elevationAnalysis.elevationLoss, // meters (filtered)
+            maxElevation: elevationAnalysis.maxElevation, // meters
+            minElevation: elevationAnalysis.minElevation, // meters
+            elevationRange: elevationAnalysis.elevationRange, // meters
+            // Extension data
             averageHeartRate: this.calculateAverageExtension(validPoints, 'heartRate'),
             maxHeartRate: this.calculateMaxExtension(validPoints, 'heartRate'),
             averageCadence: this.calculateAverageExtension(validPoints, 'cadence'),
             averagePower: this.calculateAverageExtension(validPoints, 'power'),
+            // Metadata
             pointCount: validPoints.length,
             startTime: validPoints[0]?.time,
-            endTime: validPoints[validPoints.length - 1]?.time
+            endTime: validPoints[validPoints.length - 1]?.time,
+            // Quality metrics from improved elevation calculation
+            elevationQuality: {
+                validSegments: elevationAnalysis.validSegments,
+                filteredSegments: elevationAnalysis.filteredSegments,
+                filteringEfficiency: elevationAnalysis.filteringEfficiency,
+                elevationDataCoverage: elevationAnalysis.qualityMetrics.elevationDataCoverage
+            }
         };
     }
 
@@ -561,6 +702,15 @@ class GPXParser {
 
         // Basic implementation - would need user's FTP for accurate calculations
         return metrics;
+    }
+
+    /**
+     * Get improved elevation analysis for a set of points (public method)
+     * @param {Array} points - Array of GPS track points with elevation data
+     * @returns {Object} Detailed elevation analysis with filtering statistics
+     */
+    getElevationAnalysis(points) {
+        return this.calculateElevationGainImproved(points);
     }
 
     /**

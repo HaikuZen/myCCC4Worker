@@ -1,4 +1,6 @@
 import { parseString } from 'xml2js'
+import { createLogger } from './logger'
+const logger = createLogger('GPXParser')
 
 interface TrackPoint {
   lat: number
@@ -19,11 +21,18 @@ interface TrackPoint {
 
 interface Track {
   name: string
+  id?: string
+  Distance?: number // in meters
+  TimerTime?: number // in seconds
+  MovingTime?: number // in seconds
+  StoppedTime?: number  // in seconds
+  MaxSpeed?: number // in m/s
   points: TrackPoint[]
   segmentCount: number
 }
 
 interface Summary {
+  riderWeight?: number // in kg
   distance: number
   totalTime: number
   movingTime: number
@@ -31,6 +40,8 @@ interface Summary {
   maxSpeed: number
   elevationGain: number
   elevationLoss: number
+  distanceClimb: number
+  distanceDescent: number
   maxElevation?: number
   minElevation?: number
   startTime?: Date
@@ -57,6 +68,11 @@ interface Analysis {
     maximum: number
     normalizedPower?: number
   }
+  intensityMetrics?: {
+    variabilityIndex?: number,
+    intensityFactor?: number ,
+    trainingStressScore?: number
+  }
 }
 
 interface Segment {
@@ -65,6 +81,9 @@ interface Segment {
   elevationChange: number
   avgGradient: number
   maxGradient: number
+  startIndex: number
+  endIndex: number
+  duration?: number
 }
 
 interface ElevationCalculationOptions {
@@ -98,13 +117,16 @@ interface GPXData {
  * Converted to TypeScript for Cloudflare Workers
  */
 export class GPXParser {
+  
   /**
    * Parse GPX content from text
    */
-  async parseFromText(xmlContent: string): Promise<GPXData> {
+  async parseFromText(xmlContent: string, riderWeight: number = 0): Promise<GPXData> {
     try {
+      logger.debug('Starting GPX parsing' + (xmlContent.length > 100 ? `(length: ${xmlContent.length})` : `: ${xmlContent}`))
       const result = await this.parseStringPromise(xmlContent)
-      return this.extractCyclingData(result)
+      logger.debug(`GPX parsing completed ${result ? 'successfully' : 'with no result'}`)
+      return this.extractCyclingData(result, riderWeight)
     } catch (error) {
       throw new Error(`GPX parsing failed: ${error.message}`)
     }
@@ -129,21 +151,33 @@ export class GPXParser {
   /**
    * Extract comprehensive cycling data from parsed GPX
    */
-  private extractCyclingData(gpxData: any): GPXData {
+  private extractCyclingData(gpxData: any, riderWeight: number = 0): GPXData {
     const tracks = this.extractTracks(gpxData)
     if (tracks.length === 0) {
       throw new Error('No track data found in GPX file')
     }
 
+    logger.debug(`Tracks Distance: ${tracks[0].Distance}, TimerTime: ${tracks[0].TimerTime}, MovingTime: ${tracks[0].MovingTime}, StoppedTime: ${tracks[0].StoppedTime}, MaxSpeed: ${tracks[0].MaxSpeed}  `)
+
     const allPoints = tracks.reduce((acc, track) => acc.concat(track.points), [] as TrackPoint[])
+    
+    
+    const segments = this.identifySegments(allPoints)
+
+    const summary = this.calculateSummary(allPoints, segments);
+    summary.riderWeight = riderWeight;  
+
+    const analysis = this.performDetailedAnalysis(allPoints, summary) // TODO: review from *.js
+    
+    logger.debug(`Analysis: ${JSON.stringify(analysis)}`)
     
     return {
       metadata: this.extractMetadata(gpxData),
-      summary: this.calculateSummary(allPoints),
+      summary: summary,
       tracks: tracks,
       points: allPoints,
-      analysis: this.performDetailedAnalysis(allPoints),
-      segments: this.identifySegments(allPoints)
+      analysis: analysis,
+      segments: segments
     }
   }
 
@@ -176,7 +210,7 @@ export class GPXParser {
     return tracksArray.map((track, trackIndex) => {
       const segments = Array.isArray(track.trkseg) ? track.trkseg : [track.trkseg]
       const points: TrackPoint[] = []
-      
+
       segments.forEach((segment, segIndex) => {
         if (segment?.trkpt) {
           const segmentPoints = Array.isArray(segment.trkpt) ? segment.trkpt : [segment.trkpt]
@@ -188,8 +222,15 @@ export class GPXParser {
         }
       })
       
+
       return {
         name: track.name || `Track ${trackIndex + 1}`,
+        id: track.extensions?.['opentracks:trackid'] ,
+        Distance: track.extensions?.['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:Distance'] ? parseFloat(track.extensions['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:Distance']) : undefined,
+        TimerTime: track.extensions?.['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:TimerTime'] ? parseFloat(track.extensions['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:TimerTime']) : undefined,
+        MovingTime: track.extensions?.['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:MovingTime'] ? parseFloat(track.extensions['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:MovingTime']) : undefined,
+        StoppedTime: track.extensions?.['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:StoppedTime'] ? parseFloat(track.extensions['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:StoppedTime']) : undefined,
+        MaxSpeed: track.extensions?.['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:MaxSpeed'] ? parseFloat(track.extensions['gpxtrkx:TrackStatsExtension']?.['gpxtrkx:MaxSpeed']) : undefined,
         points: points,
         segmentCount: segments.length
       }
@@ -246,6 +287,9 @@ export class GPXParser {
       parsed.cadence = garmin['gpxtpx:cad'] ? parseInt(garmin['gpxtpx:cad']) : undefined
       parsed.speed = garmin['gpxtpx:speed'] ? parseFloat(garmin['gpxtpx:speed']) : undefined
       parsed.power = garmin['gpxtpx:power'] ? parseFloat(garmin['gpxtpx:power']) : undefined
+    }
+    if(extensions['opentracks:accuracy_horizontal']){
+      parsed.accuracy_horizontal = parseFloat(extensions['opentracks:accuracy_horizontal'])
     }
 
     return parsed
@@ -353,128 +397,319 @@ export class GPXParser {
   }
 
   /**
-   * Calculate comprehensive ride summary
+   * Calculate comprehensive track summary
    */
-  private calculateSummary(points: TrackPoint[]): Summary {
-    if (points.length < 2) {
-      return {
-        distance: 0,
-        totalTime: 0,
-        movingTime: 0,
-        avgSpeed: 0,
-        maxSpeed: 0,
-        elevationGain: 0,
-        elevationLoss: 0
-      }
+  private calculateSummary(points: TrackPoint[], segments: Segment[]): Summary {
+    if (points.length === 0) {
+      return this.getEmptySummary();
     }
 
-    const validPoints = points.filter(p => p.lat && p.lon)
-    let totalDistance = 0
-    let maxSpeed = 0
-    let maxElevation = -Infinity
-    let minElevation = Infinity
-
-    const speeds: number[] = []
-    const elevations: number[] = []
-    const validTimePoints = validPoints.filter(p => p.time)
-
-    // Calculate elevation gain/loss using improved algorithm
-    const elevationResults = this.calculateElevationGainImproved(validPoints)
-    const totalElevationGain = elevationResults.elevationGain
-    const totalElevationLoss = elevationResults.elevationLoss
-
-    for (let i = 1; i < validPoints.length; i++) {
-      const prev = validPoints[i - 1]
-      const curr = validPoints[i]
-
-      // Calculate distance segment
-      const segmentDistance = this.calculateDistance(prev, curr)
-      totalDistance += segmentDistance
-
-      // Track elevation range (using original values)
-      if (prev.elevation !== undefined && curr.elevation !== undefined) {
-        maxElevation = Math.max(maxElevation, curr.elevation)
-        minElevation = Math.min(minElevation, curr.elevation)
-        elevations.push(curr.elevation)
-      }
-
-      // Calculate speed if we have time data
-      if (prev.time && curr.time && segmentDistance > 0) {
-        const timeDiff = (curr.time.getTime() - prev.time.getTime()) / 1000 // seconds
-        if (timeDiff > 0) {
-          const speed = (segmentDistance / 1000) / (timeDiff / 3600) // km/h
-          speeds.push(speed)
-          maxSpeed = Math.max(maxSpeed, speed)
-        }
-      }
+    if (points.length === 1) {
+      return this.getSinglePointSummary(points[0]);
     }
 
-    // Calculate time-based statistics
-    let totalTime = 0
-    let movingTime = 0
-    let startTime: Date | undefined
-    let endTime: Date | undefined
+    // Configuration for moving detection
+    const config = {
+      minMovingSpeed: 0.5,        // m/s (1.8 km/h) - below this is considered stopped
+      speedSmoothingWindow: 5,    // Points to average for speed calculation
+      elevationThreshold: 1       // Minimum elevation change to count (meters)
+    };
 
-    if (validTimePoints.length >= 2) {
-      startTime = validTimePoints[0].time
-      endTime = validTimePoints[validTimePoints.length - 1].time
-      
-      if (startTime && endTime) {
-        totalTime = (endTime.getTime() - startTime.getTime()) / 1000 // seconds
+    // Calculate basic metrics
+    const distance = this.calculateTotalDistance(points);
+    const timeMetrics = this.calculateTimeMetrics(points);
+    const speedMetrics = this.calculateSpeedMetrics(points, config);
+    const elevationMetrics = this.calculateElevationMetrics(points, config.elevationThreshold);
+
+  
+    let climb = 0, descent = 0, distanceDescent = 0, distanceClimb = 0;
+    for (let i = 0; i < segments.length; i++) {
+      if(segments[i].type === 'climb') { 
+        distanceClimb += segments[i].distance;
+        climb += segments[i].elevationChange; 
+      }
+      if(segments[i].type === 'descent') { 
+        descent += segments[i].elevationChange;
+        distanceDescent += segments[i].distance;
+      }
+    }
         
-        // Calculate moving time (exclude stops > 30 seconds)
-        movingTime = totalTime
-        for (let i = 1; i < validTimePoints.length; i++) {
-          const prev = validTimePoints[i - 1]
-          const curr = validTimePoints[i]
-          if (prev.time && curr.time) {
-            const segmentTime = (curr.time.getTime() - prev.time.getTime()) / 1000
-            if (segmentTime > 30) { // Consider stops > 30 seconds
-              movingTime -= Math.max(0, segmentTime - 30)
-            }
-          }
-        }
-      }
-    }
-
-    const avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0
-
     return {
-      distance: totalDistance / 1000, // Convert to km
+      distance: Math.round(distance * 1000) / 1000000, // Convert to km and round to nearest meter                
+      totalTime: timeMetrics.totalTime,
+      movingTime: timeMetrics.movingTime,
+      avgSpeed: Math.round(speedMetrics.avgSpeed * 1000) / 1000 * 3.6,         // Convert to km/h and round to nearest 0.1 km/h
+      maxSpeed: Math.round(speedMetrics.maxSpeed * 1000) / 1000 * 3.6,       // Convert to km/h and round to nearest 0.1 km/h
+      elevationGain: climb,
+      elevationLoss: descent,
+      distanceClimb: distanceClimb,
+      distanceDescent: distanceDescent,
+      maxElevation: elevationMetrics.maxElevation,
+      minElevation: elevationMetrics.minElevation,
+      startTime: timeMetrics.startTime,
+      endTime: timeMetrics.endTime,
+    };
+  }
+  
+  /**
+   * Calculate total distance traveled
+   */
+  private calculateTotalDistance(points: TrackPoint[]): number {
+    let totalDistance = 0;
+    
+    for (let i = 1; i < points.length; i++) {
+      totalDistance += this.calculateDistance(points[i - 1], points[i]);
+    }
+    
+    return totalDistance;
+  }
+
+  /**
+   * Calculate time-related metrics
+   */
+  private calculateTimeMetrics(points: TrackPoint[]) {
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    
+    // Time boundaries
+    const startTime = firstPoint.time;
+    const endTime = lastPoint.time;
+    
+    let totalTime = 0;
+    let movingTime = 0;
+    
+    if (startTime && endTime) {
+      totalTime = (endTime.getTime() - startTime.getTime()) / 1000; // seconds
+      
+      // Calculate moving time by analyzing speed/movement
+      movingTime = this.calculateMovingTime(points);
+    }
+    
+    return {
       totalTime,
       movingTime,
-      avgSpeed,
-      maxSpeed,
-      elevationGain: totalElevationGain,
-      elevationLoss: totalElevationLoss,
-      maxElevation: maxElevation !== -Infinity ? maxElevation : undefined,
-      minElevation: minElevation !== Infinity ? minElevation : undefined,
       startTime,
       endTime
-    }
+    };
   }
+
+  /**
+   * Calculate moving time (excluding stops)
+   */
+  private calculateMovingTime(points: TrackPoint[]): number {
+    if (points.length < 2) return 0;
+    
+    let movingTime = 0;
+ 
+    for (let i = 1; i < points.length; i++) {
+      const prevPoint = points[i - 1];
+      const currPoint = points[i];
+      
+      if (prevPoint.time && currPoint.time) {
+        const segmentTime = (currPoint.time.getTime() - prevPoint.time.getTime()) / 1000
+        const distance = this.calculateDistance(prevPoint, currPoint)
+        //logger.debug(`Segment ${i}: distance=${distance} Time=${segmentTime}s`)
+        if (distance > 0.5) { //  Consider moving if distance > 0.5m
+              movingTime += segmentTime
+        }
+      }
+    }
+    
+    return movingTime;
+  }
+
+  /**
+   * Calculate speed-related metrics
+   */
+  private calculateSpeedMetrics(points: TrackPoint[], config: any) {
+    let maxSpeed = 0;
+    let totalMovingDistance = 0;
+    let totalMovingTime = 0;
+    let avgDistance = 0;
+    const speeds: number[] = [];
+    
+    for (let i = 1; i < points.length; i++) {
+      const prevPoint = points[i - 1];
+      const currPoint = points[i];
+      
+      if (!prevPoint.time || !currPoint.time) continue;
+      
+      const timeDiff = (currPoint.time.getTime() - prevPoint.time.getTime()) / 1000; // seconds
+      if (timeDiff <= 0) continue;
+      
+      const distance = this.calculateDistance(prevPoint, currPoint);
+      
+      
+      if(avgDistance == 0) 
+        avgDistance = distance      
+      else if(Math.abs(((avgDistance+distance)/2)-distance) > 2*avgDistance) continue; // ignore spikes
+      else avgDistance = (avgDistance+distance)/2; // running average distance between points
+
+      const instantSpeed = distance / timeDiff; // m/s
+      
+      //logger.debug(`Point ${i}: distance=${distance.toFixed(2)}m, timeDiff=${timeDiff.toFixed(2)}s, instantSpeed=${instantSpeed.toFixed(2)}m/s speedExt=${currPoint.extensions?.speed} avgDistance=${avgDistance.toFixed(2)}m`);
+
+      // Use provided speed from extensions if available and reasonable, otherwise calculate
+      let pointSpeed = instantSpeed;
+      if (currPoint.extensions?.speed !== undefined && 
+          currPoint.extensions.speed >= 0 && 
+          currPoint.extensions.speed < 200) {
+            pointSpeed = currPoint.extensions.speed;
+      }
+      
+      speeds.push(pointSpeed);
+      maxSpeed = Math.max(maxSpeed, pointSpeed);
+      // logger.debug(`Point ${i}: Max speed=${maxSpeed.toFixed(2)}m/s  `);
+      // Accumulate for average (only when moving)
+      if (pointSpeed >= config.minMovingSpeed) {
+        totalMovingDistance += distance;
+        totalMovingTime += timeDiff;
+      }
+    }
+    
+    // Calculate average speed based on moving time and distance
+    const avgSpeed = totalMovingTime > 0 ? totalMovingDistance / totalMovingTime : 0;
+    
+    return {
+      avgSpeed,
+      maxSpeed,
+      speeds
+    };
+  }
+
+  /**
+   * Calculate elevation-related metrics
+   */
+  private calculateElevationMetrics(points: TrackPoint[], elevationThreshold: number) {
+    const elevationPoints = points.filter(p => p.elevation !== undefined);
+    
+    if (elevationPoints.length === 0) {
+      return {
+        gain: 0,
+        loss: 0,
+        maxElevation: undefined,
+        minElevation: undefined
+      };
+    }
+    
+    // Find min/max elevation
+    let maxElevation = elevationPoints[0].elevation!;
+    let minElevation = elevationPoints[0].elevation!;
+    
+    for (const point of elevationPoints) {
+      maxElevation = Math.max(maxElevation, point.elevation!);
+      minElevation = Math.min(minElevation, point.elevation!);
+    }
+    
+    // Calculate cumulative gain and loss
+    let elevationGain = 0;
+    let elevationLoss = 0;
+    
+    // Use smoothed elevation data for more accurate gain/loss calculation
+    const smoothedElevations = this.smoothElevationForSummary(elevationPoints);
+    
+    for (let i = 1; i < smoothedElevations.length; i++) {
+      const elevationChange = smoothedElevations[i] - smoothedElevations[i - 1];
+      
+      // Only count significant changes
+      if (Math.abs(elevationChange) >= elevationThreshold) {
+        if (elevationChange > 0) {
+          elevationGain += elevationChange;
+        } else {
+          elevationLoss += Math.abs(elevationChange);
+        }
+      }
+    }
+    
+    return {
+      gain: elevationGain,
+      loss: elevationLoss,
+      maxElevation: Math.round(maxElevation * 100) / 100,
+      minElevation: Math.round(minElevation * 100) / 100
+    };
+  }
+
+  /**
+   * Apply light smoothing for elevation gain/loss calculation
+   */
+  private smoothElevationForSummary(points: TrackPoint[]): number[] {
+    if (points.length <= 3) {
+      return points.map(p => p.elevation!);
+    }
+    
+    const smoothed: number[] = [];
+    const smoothingFactor = 0.4; // Lighter smoothing for summary
+    
+    smoothed[0] = points[0].elevation!;
+    
+    for (let i = 1; i < points.length; i++) {
+      smoothed[i] = smoothingFactor * points[i].elevation! + 
+                    (1 - smoothingFactor) * smoothed[i - 1];
+    }
+    
+    return smoothed;
+  }
+
+  /**
+   * Return empty summary for edge cases
+   */
+  private getEmptySummary(): Summary {
+    return {
+      distance: 0,
+      totalTime: 0,
+      movingTime: 0,
+      avgSpeed: 0,
+      maxSpeed: 0,
+      elevationGain: 0,
+      elevationLoss: 0,
+      distanceClimb: 0,
+      distanceDescent: 0,
+      maxElevation: undefined,
+      minElevation: undefined,
+      startTime: undefined,
+      endTime: undefined
+    };
+  }
+
+  /**
+   * Return summary for single point
+   */
+  private getSinglePointSummary(point: TrackPoint): Summary {
+    return {
+      distance: 0,
+      totalTime: 0,
+      movingTime: 0,
+      avgSpeed: 0,
+      maxSpeed: 0,
+      elevationGain: 0,
+      elevationLoss: 0,
+      distanceClimb: 0,
+      distanceDescent: 0, 
+      maxElevation: point.elevation,
+      minElevation: point.elevation,
+      startTime: point.time,
+      endTime: point.time
+    };
+  }
+
 
   /**
    * Perform detailed analysis of the ride data
    */
-  private performDetailedAnalysis(points: TrackPoint[]): Analysis {
-    const summary = this.calculateSummary(points)
+  private performDetailedAnalysis(points: TrackPoint[], summary: Summary): Analysis {
+        
     
-    // Calculate calories using distance and elevation method
-    const baseCalories = Math.round(summary.distance * 50) // Base: 50 cal/km
-    const elevationCalories = Math.round(summary.elevationGain * 10) // 10 cal per meter climbed
-    const totalCalories = baseCalories + elevationCalories
-
     const analysis: Analysis = {
-      caloriesBurned: {
-        estimated: totalCalories,
-        method: 'distance_elevation',
-        breakdown: {
-          base: baseCalories,
-          elevation: elevationCalories
-        }
+      speedZones: this.analyzeSpeedZones(points),
+      heartRateZones: this.analyzeHeartRateZones(points),
+      powerZones: this.analyzePowerZones(points),
+      intensityMetrics: this.calculateIntensityMetrics(points),
+      caloriesBurned: { estimated: 0, method: 'none', breakdown: {}
       }
     }
+
+    // Calculate calories burned
+    analysis.caloriesBurned = this.estimateCalories(points, analysis, summary);
 
     // Add heart rate analysis if available
     const heartRates = points.filter(p => p.extensions?.heartRate).map(p => p.extensions!.heartRate!)
@@ -496,67 +731,431 @@ export class GPXParser {
   }
 
   /**
+   * Estimate calories burned during the ride
+   * using multiple methods and selecting the most accurate one available.
+   */
+  private estimateCalories(points:TrackPoint[] , analysis: Analysis, summary: Summary): { estimated: number; method: string; breakdown: { base?: number; elevation?: number; power?: number; heartRate?: number } }  {
+    if (points.length === 0 || summary.distance === 0 || summary.movingTime === 0) {
+        return {
+            estimated: 0,   
+            method: 'none', 
+            breakdown: {}
+        };
+    } 
+
+    //TODO: refine calories calculation with rider weight
+
+    logger.debug('Distance: ' + summary.distance.toFixed(2) + ' distanceDescent: ' + summary.distanceDescent.toFixed(2) + ' distanceClimb: ' + summary.distanceClimb.toFixed(2)+ ' elevationGain: ' + summary.elevationGain);
+    // Calculate calories using distance and elevation method
+    const baseCalories = Math.round((summary.distance*1000-summary.distanceDescent)/1000)*20 // Base: 5 cal/km
+    //const elevationCalories = Math.round(summary.elevationGain * 10) // 10 cal per meter climbed
+    //const totalCalories = baseCalories + elevationCalories
+
+    // Method 1: Distance and elevation based
+    //const baseCalories = summary.distance * 40; // ~40 calories per km
+    const elevationCalories = summary.elevationGain * 0.1; // Additional for climbing
+  
+    // Method 2: Heart rate based (if available)
+    let hrCalories = null;
+    if (analysis.heartRateZones) {
+        // Simplified HR-based calculation
+        hrCalories = summary.movingTime / 60 * 8; // ~8 cal/min average
+    }
+    
+    // Method 3: Power based (if available)
+    let powerCalories = null;
+    if (analysis.powerZones && analysis.powerZones.average) {
+        // Power-based: ~3.6 calories per kJ
+        const kilojoules = analysis.powerZones.average * (summary.movingTime / 1000);
+        powerCalories = kilojoules * 3.6;
+    }
+      
+    // Use most accurate method available
+    const estimated = powerCalories || hrCalories || (baseCalories + elevationCalories);
+    
+    return {
+        estimated: Math.round(estimated),
+        method: powerCalories ? 'power' : hrCalories ? 'heart_rate' : 'distance_elevation',
+        breakdown: {
+            base: Math.round(baseCalories),
+            elevation: Math.round(elevationCalories),
+            heartRate: hrCalories ? Math.round(hrCalories) : undefined,
+            power: powerCalories ? Math.round(powerCalories) : undefined
+        }
+    };
+  }  
+  /**
+   * Calculate intensity metrics
+   */
+  private calculateIntensityMetrics(points: TrackPoint[]): { variabilityIndex?: number; intensityFactor?: number; trainingStressScore?: number}  {
+      const metrics = {
+          variabilityIndex: undefined,
+          intensityFactor: undefined,
+          trainingStressScore: undefined
+      };
+
+      // Basic implementation - would need user's FTP for accurate calculations
+      return metrics;
+  }
+
+  /**
+   * Analyze power zones if available
+   */
+  private analyzePowerZones(points: TrackPoint[]): { average: number; maximum: number; normalizedPower?: number } | undefined {
+      const powerValues: number[] = points
+          .filter(p => p.extensions && p.extensions.power && p.extensions.power > 0)
+          .map(p => p.extensions?.power)
+          .filter((p): p is number => p !== undefined);
+
+      if (powerValues.length === 0) return undefined;
+
+      // Calculate basic power statistics
+      const avgPower = powerValues.reduce((a, b) => a + b) / powerValues.length;
+      const maxPower = Math.max(...powerValues);
+      
+      return {
+          average: avgPower,
+          maximum: maxPower,
+          normalizedPower: this.calculateNormalizedPower(powerValues)
+      };
+  }
+
+  /**
+   * Calculate normalized power (rolling 30-second average)
+   */
+  private calculateNormalizedPower(powerValues: number[]): number | undefined {
+      if (powerValues.length < 30) return undefined;
+      
+      const rollingAverages = [];
+      for (let i = 0; i <= powerValues.length - 30; i++) {
+          const segment = powerValues.slice(i, i + 30);
+          const average = segment.reduce((a, b) => a + b) / segment.length;
+          rollingAverages.push(Math.pow(average, 4));
+      }
+      
+      const averageFourthPower = rollingAverages.reduce((a, b) => a + b) / rollingAverages.length;
+      return Math.pow(averageFourthPower, 0.25);
+  }
+
+  /**
+   * Analyze heart rate zones if available
+   */
+  private analyzeHeartRateZones(points: TrackPoint[]): Record<string, number>  {
+      const heartRates = points
+          .filter(p => p.extensions && p.extensions.heartRate)
+          .map(p => p.extensions.heartRate);
+
+      if (heartRates.length === 0) return {};
+
+      // Assuming max HR of 190 for zone calculation (should be configurable)
+      const maxHR = 190;
+      const zones = {
+          'Zone 1 (50-60%)': 0,
+          'Zone 2 (60-70%)': 0,
+          'Zone 3 (70-80%)': 0,
+          'Zone 4 (80-90%)': 0,
+          'Zone 5 (90-100%)': 0
+      };
+
+      heartRates.forEach(hr => {
+          const percentage = (hr / maxHR) * 100;
+          if (percentage < 60) zones['Zone 1 (50-60%)']++;
+          else if (percentage < 70) zones['Zone 2 (60-70%)']++;
+          else if (percentage < 80) zones['Zone 3 (70-80%)']++;
+          else if (percentage < 90) zones['Zone 4 (80-90%)']++;
+          else zones['Zone 5 (90-100%)']++;
+      });
+
+      // Convert to percentages
+      Object.keys(zones).forEach(zone => {
+          zones[zone] = Math.round((zones[zone] / heartRates.length) * 100);
+      });
+
+      return zones;
+  }
+
+  /**
+   * Analyze speed zones distribution
+   */
+  private analyzeSpeedZones(points: TrackPoint[]): Record<string, number> {
+      const zones = {
+          'Recovery (0-15 km/h)': 0,
+          'Endurance (15-25 km/h)': 0,
+          'Tempo (25-35 km/h)': 0,
+          'Threshold (35-45 km/h)': 0,
+          'VO2 Max (45+ km/h)': 0
+      };
+
+      let totalPoints = 0;
+
+      for (let i = 1; i < points.length; i++) {
+          const prev = points[i - 1];
+          const curr = points[i];
+
+          if (prev.time && curr.time) {
+              const timeDiff = (curr.time.getTime() - prev.time.getTime()) / 1000;
+              
+              // Use same filtering as in calculateSummary
+              if (timeDiff < 2 || timeDiff > 300) {
+                  continue;
+              }
+              
+              const distance = this.calculateDistance(prev, curr);
+              const speed = (distance * 3.6) / timeDiff;
+              
+              // Apply same realistic speed filtering
+              if (speed >= 1 && speed <= 70 && distance >= 0.002) {
+                  totalPoints++;
+                  if (speed < 15) zones['Recovery (0-15 km/h)']++;
+                  else if (speed < 25) zones['Endurance (15-25 km/h)']++;
+                  else if (speed < 35) zones['Tempo (25-35 km/h)']++;
+                  else if (speed < 45) zones['Threshold (35-45 km/h)']++;
+                  else zones['VO2 Max (45+ km/h)']++;
+              }
+          }
+      }
+
+      // Convert to percentages
+      Object.keys(zones).forEach(zone => {
+          zones[zone] = totalPoints > 0 ? Math.round((zones[zone] / totalPoints) * 100) : 0;
+      });
+      logger.debug(`Speed Zones: ${JSON.stringify(zones)}`);
+      return zones;
+  }
+
+  /**
    * Identify climbing and descending segments
    */
   private identifySegments(points: TrackPoint[]): Segment[] {
     const segments: Segment[] = []
     
-    // Simplified segment identification
-    // In a full implementation, this would be more sophisticated
     const elevationPoints = points.filter(p => p.elevation !== undefined)
     
     if (elevationPoints.length < 10) return segments
 
-    // Find significant elevation changes
-    let currentSegment: Partial<Segment> | null = null
+    // Configuration
+    const config = {
+      windowSize: 5,
+      elevationThreshold: 10, // meters
+      gradientThreshold: 2,   // percentage
+      minSegmentDistance: 100, // meters
+      smoothingFactor: 0.3
+    };
+
+    // Step 1: Apply elevation smoothing
+    const smoothedPoints = this.smoothElevationData(elevationPoints, config.smoothingFactor);
     
-    for (let i = 5; i < elevationPoints.length - 5; i++) {
-      const current = elevationPoints[i]
-      const lookBehind = elevationPoints.slice(i - 5, i)
-      const lookAhead = elevationPoints.slice(i + 1, i + 6)
+    // Step 2: Calculate gradients between consecutive points
+    const gradients = this.calculateGradients(smoothedPoints);
+    
+    // Step 3: Identify segment boundaries
+    const boundaries = this.findSegmentBoundaries(smoothedPoints, gradients, config);
+    
+    // Step 4: Create segments from boundaries
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      const startIdx = boundaries[i];
+      const endIdx = boundaries[i + 1];
+      const segmentPoints = smoothedPoints.slice(startIdx, endIdx + 1);
       
-      const avgElevationBehind = lookBehind.reduce((sum, p) => sum + p.elevation!, 0) / lookBehind.length
-      const avgElevationAhead = lookAhead.reduce((sum, p) => sum + p.elevation!, 0) / lookAhead.length
+      if (segmentPoints.length < 2) continue;
       
-      const elevationChange = avgElevationAhead - avgElevationBehind
-      
-      if (Math.abs(elevationChange) > 10) { // Significant change
-        const segmentType: 'climb' | 'descent' | 'flat' = elevationChange > 0 ? 'climb' : 'descent'
-        
-        if (!currentSegment || currentSegment.type !== segmentType) {
-          // Start new segment
-          if (currentSegment) {
-            segments.push(currentSegment as Segment)
-          }
-          currentSegment = {
-            type: segmentType,
-            distance: 0,
-            elevationChange: 0,
-            avgGradient: 0,
-            maxGradient: 0
-          }
-        }
+      const segment = this.createSegment(segmentPoints, startIdx, endIdx);
+      //logger.debug(`Segment ${i + 1}: Type=${segment.type}, Distance=${segment.distance.toFixed(1)}m, ElevationChange=${segment.elevationChange.toFixed(1)}m, AvgGradient=${segment.avgGradient.toFixed(2)}%, MaxGradient=${segment.maxGradient.toFixed(2)}%`);
+      // Filter out segments that are too short
+      if (segment.distance >= config.minSegmentDistance) {
+        segments.push(segment);
       }
     }
-
-    return segments
+  
+    // Step 5: Merge similar adjacent segments
+    const mergedSegments = this.mergeAdjacentSegments(segments);
+    
+    logger.debug(`Identified ${mergedSegments.length} segments`);
+    return mergedSegments;
   }
 
   /**
-   * Calculate distance between two points using Haversine formula
+   * Apply exponential smoothing to elevation data
+   */
+  private smoothElevationData(points: TrackPoint[], smoothingFactor: number): TrackPoint[] {
+    if (points.length === 0) return points;
+    
+    const smoothed = [...points];
+    
+    
+    smoothed[0] = { ...points[0] };
+   
+
+    for (let i = 1; i < points.length; i++) {
+      const currentElevation = points[i].elevation!;
+      const previousSmoothed = smoothed[i - 1].elevation!;
+      
+      smoothed[i] = {
+        ...points[i],
+        elevation: smoothingFactor * currentElevation + (1 - smoothingFactor) * previousSmoothed
+      };
+      //logger.debug(`smooted[${i}]:  ${smoothed[i].elevation?.toFixed(2)} ${points[i].elevation}`);
+    }
+    
+    return smoothed;
+  }  
+
+  /**
+   * Find segment boundaries based on gradient changes
+   */
+  private findSegmentBoundaries(
+    points: TrackPoint[], 
+    gradients: number[], 
+    config: any
+  ): number[] {
+    const boundaries: number[] = [0]; // Start with first point
+    
+    let currentSegmentType = this.getSegmentType(gradients[0], config.gradientThreshold);
+    
+    for (let i = config.windowSize; i < gradients.length - config.windowSize; i++) {
+      // Calculate average gradient in window
+      const windowStart = Math.max(0, i - config.windowSize);
+      const windowEnd = Math.min(gradients.length, i + config.windowSize);
+      const windowGradients = gradients.slice(windowStart, windowEnd);
+      const avgGradient = windowGradients.reduce((sum, g) => sum + g, 0) / windowGradients.length;
+      
+      const newSegmentType = this.getSegmentType(avgGradient, config.gradientThreshold);
+      
+      // Check for segment type change
+      if (newSegmentType !== currentSegmentType) {
+        boundaries.push(i);
+        currentSegmentType = newSegmentType;
+      }
+    }
+    
+    boundaries.push(points.length - 1); // End with last point
+    return boundaries;
+  }
+
+  /**
+   * Calculate gradients between consecutive points
+   */
+  private calculateGradients(points: TrackPoint[]): number[] {
+    const gradients: number[] = [];
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      const distance = this.calculateDistance(points[i], points[i + 1]);
+      const elevationChange = points[i + 1].elevation! - points[i].elevation!;
+      
+      // Gradient as percentage
+      const gradient = distance > 0 ? (elevationChange / distance) * 100 : 0;
+      gradients.push(gradient);
+    }
+    
+    return gradients;
+  }
+
+  /**
+   * Determine segment type based on gradient
+   */
+  private getSegmentType(gradient: number, threshold: number): 'climb' | 'descent' | 'flat' {
+    if (gradient > threshold) return 'climb';
+    if (gradient < -threshold) return 'descent';
+    return 'flat';
+  }
+
+  /**
+   * Create a segment from a series of points
+   */
+  private createSegment(points: TrackPoint[], startIdx: number, endIdx: number): Segment {
+    let totalDistance = 0;
+    let maxGradient = 0;
+    const gradients: number[] = [];
+    
+    // Calculate distance and gradients
+    for (let i = 0; i < points.length - 1; i++) {
+      const distance = this.calculateDistance(points[i], points[i + 1]);
+      totalDistance += distance;
+      
+      const elevationChange = points[i + 1].elevation! - points[i].elevation!;
+      const gradient = distance > 0 ? Math.abs((elevationChange / distance) * 100) : 0;
+      
+      gradients.push(gradient);
+      maxGradient = Math.max(maxGradient, gradient);
+    }
+    
+    const totalElevationChange = points[points.length - 1].elevation! - points[0].elevation!;
+    const avgGradient = totalDistance > 0 ? Math.abs((totalElevationChange / totalDistance) * 100) : 0;
+    
+    // Determine segment type
+    const segmentType = this.getSegmentType(
+      totalDistance > 0 ? (totalElevationChange / totalDistance) * 100 : 0,
+      2 // Use a stricter threshold for final classification
+    );
+    
+    // Calculate duration if timestamps are available
+    let duration: number | undefined;
+    if (points[0].time && points[points.length - 1].time) {
+      duration = points[points.length - 1].time!.getTime()! - points[0].time.getTime()!;
+    }
+    
+    return {
+      type: segmentType,
+      distance: totalDistance,
+      elevationChange: totalElevationChange, //Math.abs(totalElevationChange),
+      avgGradient: avgGradient,
+      maxGradient: maxGradient,
+      startIndex: startIdx,
+      endIndex: endIdx,
+      duration: duration
+    };
+  }
+
+  /**
+   * Merge adjacent segments of the same type if they're small
+   */
+  private mergeAdjacentSegments(segments: Segment[]): Segment[] {
+    if (segments.length <= 1) return segments;
+    
+    const merged: Segment[] = [];
+    let current = segments[0];
+    
+    for (let i = 1; i < segments.length; i++) {
+      const next = segments[i];
+      
+      // Merge if same type and current segment is short
+      if (current.type === next.type && current.distance < 200) {
+        current = {
+          ...current,
+          distance: current.distance + next.distance,
+          elevationChange: current.elevationChange + next.elevationChange,
+          avgGradient: ((current.avgGradient * current.distance) + (next.avgGradient * next.distance)) / (current.distance + next.distance),
+          maxGradient: Math.max(current.maxGradient, next.maxGradient),
+          endIndex: next.endIndex,
+          duration: current.duration && next.duration ? current.duration + next.duration : undefined
+        };
+      } else {
+        merged.push(current);
+        current = next;
+      }
+    }
+    
+    merged.push(current);
+    return merged;
+  }  
+  /**
+   * Calculate distance between two GPS points using Haversine formula
    */
   private calculateDistance(point1: TrackPoint, point2: TrackPoint): number {
-    const R = 6371000 // Earth's radius in meters
-    const lat1Rad = point1.lat * Math.PI / 180
-    const lat2Rad = point2.lat * Math.PI / 180
-    const deltaLat = (point2.lat - point1.lat) * Math.PI / 180
-    const deltaLon = (point2.lon - point1.lon) * Math.PI / 180
-
-    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-              Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-              Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-    return R * c // Distance in meters
+    const R = 6371000; // Earth's radius in m
+    const dLat = this.toRadians(point2.lat - point1.lat);
+    const dLon = this.toRadians(point2.lon - point1.lon);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(this.toRadians(point1.lat)) * Math.cos(this.toRadians(point2.lat)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
   }
+
+  /**
+   * Convert degrees to radians
+   */
+  private toRadians(degrees) {
+      return degrees * (Math.PI / 180);
+  }   
 }

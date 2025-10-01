@@ -56,6 +56,20 @@ export class DatabaseService extends CyclingDatabase{
     }
   }
 
+    /**
+   * Get rider weight from configuration
+   */
+  async getRiderWeight() {
+    const defaultWeight = 70 // Default weight in kg if not set
+    try {
+      const config = await super.getConfig('default_rider_weight')
+      const weight = config && config.value ? parseFloat(config.value) : defaultWeight
+      return isNaN(weight) ? defaultWeight : weight
+    } catch (error) {
+      this.logger.error('Error getting rider weight:', error)
+      return defaultWeight
+    } 
+  }
   /**
    * Get recent rides for display
    */

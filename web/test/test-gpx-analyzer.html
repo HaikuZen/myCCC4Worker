@@ -471,7 +471,7 @@
                 const formData = new FormData();
                 formData.append('gpxFile', fileInput.files[0]);
 
-                const response = await fetch('/api/analyze', {
+                const response = await fetch('/api/analyze?skipSaveToDB', {
                     method: 'POST',
                     body: formData
                 });
@@ -660,7 +660,7 @@
                             </strong>
                         </div>
                         <div style="text-align: right; color: #666;">
-                            <div>${segment.distance.toFixed(2)}km</div>
+                            <div>(${segment.distance.toFixed(2)}m)</div>
                             <div>${segment.elevationChange > 0 ? '+' : ''}${Math.round(segment.elevationChange)}m</div>
                         </div>
                     </div>
