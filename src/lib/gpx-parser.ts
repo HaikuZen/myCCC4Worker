@@ -1,5 +1,6 @@
 import { parseString } from 'xml2js'
 import { createLogger } from './logger'
+import { WeatherService } from './weather'
 const logger = createLogger('GPXParser')
 
 interface TrackPoint {
@@ -73,6 +74,15 @@ interface Analysis {
     intensityFactor?: number ,
     trainingStressScore?: number
   }
+  elevationenanced?: boolean
+  weather?: {
+    temperature?: number
+    humidity?: number
+    windSpeed?: number
+    windDirection?: number
+    conditions?: string
+    location?: string
+  }
 }
 
 interface Segment {
@@ -121,14 +131,15 @@ export class GPXParser {
   /**
    * Parse GPX content from text
    */
-  async parseFromText(xmlContent: string, riderWeight: number = 0): Promise<GPXData> {
+  async parseFromText(xmlContent: string): Promise<any> {
     try {
       logger.debug('Starting GPX parsing' + (xmlContent.length > 100 ? `(length: ${xmlContent.length})` : `: ${xmlContent}`))
       const result = await this.parseStringPromise(xmlContent)
       logger.debug(`GPX parsing completed ${result ? 'successfully' : 'with no result'}`)
-      return this.extractCyclingData(result, riderWeight)
+      //return this.extractCyclingData(result, riderWeight)
+      return result;
     } catch (error) {
-      throw new Error(`GPX parsing failed: ${error.message}`)
+      throw new Error(`GPX parsing failed: ${(error as any).message}`)
     }
   }
 
@@ -151,7 +162,7 @@ export class GPXParser {
   /**
    * Extract comprehensive cycling data from parsed GPX
    */
-  private extractCyclingData(gpxData: any, riderWeight: number = 0): GPXData {
+  async extractCyclingData(gpxData: any, riderWeight: number = 0): GPXData {
     const tracks = this.extractTracks(gpxData)
     if (tracks.length === 0) {
       throw new Error('No track data found in GPX file')
@@ -166,19 +177,43 @@ export class GPXParser {
 
     const summary = this.calculateSummary(allPoints, segments);
     summary.riderWeight = riderWeight;  
-
-    const analysis = this.performDetailedAnalysis(allPoints, summary) // TODO: review from *.js
+    
+    
+    const metadata = this.extractMetadata(gpxData)
+    
+    if (!metadata.bounds) {
+      metadata.bounds = this.calculateBounds(allPoints) // Use calculated bounds if metadata bounds are missing
+    }
+    
+    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds) // TODO: review from *.js
     
     logger.debug(`Analysis: ${JSON.stringify(analysis)}`)
     
     return {
-      metadata: this.extractMetadata(gpxData),
+      metadata: metadata,
       summary: summary,
       tracks: tracks,
       points: allPoints,
       analysis: analysis,
       segments: segments
     }
+  }
+
+  private calculateBounds(points: TrackPoint[]) {
+    if (points.length === 0) {
+      return undefined;
+    }
+    let minLat = points[0].lat;
+    let maxLat = points[0].lat;
+    let minLon = points[0].lon;
+    let maxLon = points[0].lon;
+    points.forEach(point => { 
+      if (point.lat < minLat) minLat = point.lat;
+      if (point.lat > maxLat) maxLat = point.lat;
+      if (point.lon < minLon) minLon = point.lon;
+      if (point.lon > maxLon) maxLon = point.lon;
+    });
+    return { minLat, maxLat, minLon, maxLon };
   }
 
   /**
@@ -696,16 +731,42 @@ export class GPXParser {
   /**
    * Perform detailed analysis of the ride data
    */
-  private performDetailedAnalysis(points: TrackPoint[], summary: Summary): Analysis {
-        
+  private async performDetailedAnalysis(points: TrackPoint[], summary: Summary, 
+        boundaries: {minLat: number, maxLat: number, minLon: number, maxLon: number } | undefined): Promise<Analysis> {
+
+    const env = (typeof process !== 'undefined' && process.env) ? process.env : {} as any;
     
+    let lat = 0, lon = 0, location = '';
+    if (boundaries) {
+      lat = (boundaries.minLat + boundaries.maxLat) / 2;
+      lon = (boundaries.minLon + boundaries.maxLon) / 2;
+      location = `(${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+    } 
+    let weather = undefined;
+    // Fetch weather data if API key is provided and location is valid
+    if (env.WEATHER_API_KEY) {
+      logger.debug('Fetching weather data for location ' + location+ ' with API key ' + (env.WEATHER_API_KEY.length > 4 ? env.WEATHER_API_KEY.substring(0,4)+'...' : env.WEATHER_API_KEY)); 
+      const weatherService = new WeatherService(env.WEATHER_API_KEY)        
+      // Use the weather service to get weather data
+      const weatherResult = await weatherService.getWeather({ lat: lat.toString(), lon: lon.toString(), location })
+    
+      if(weatherResult.success && weatherResult.data) {
+        weather = weatherResult.data.current;
+        logger.debug(`Weather at ${location}: ${JSON.stringify(weather)}`);
+      }
+        
+      else
+        logger.debug(`No weather data available for ${location}`);
+    }
+
     const analysis: Analysis = {
       speedZones: this.analyzeSpeedZones(points),
       heartRateZones: this.analyzeHeartRateZones(points),
       powerZones: this.analyzePowerZones(points),
       intensityMetrics: this.calculateIntensityMetrics(points),
-      caloriesBurned: { estimated: 0, method: 'none', breakdown: {}
-      }
+      weather: weather,
+      elevationenanced: false, // Placeholder, will be set if elevation data is enhanced
+      caloriesBurned: { estimated: 0, method: 'none', breakdown: {} } // Placeholder, will be calculated below
     }
 
     // Calculate calories burned

@@ -5,6 +5,7 @@ import { serveStatic } from 'hono/cloudflare-workers'
 import { GPXParser } from './lib/gpx-parser'
 import { DatabaseService } from './lib/database-service'
 import { createLogger } from './lib/logger'
+import { WeatherService } from './lib/weather'
 
 type Bindings = {
   DB: D1Database
@@ -66,7 +67,7 @@ app.get('/api/dashboard', async (c) => {
   } catch (error) {
     const log = createLogger('API:Dashboard')
     log.error('Error getting dashboard data:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -79,7 +80,7 @@ app.get('/api/rides', async (c) => {
     const rides = await dbService.getRecentRides(limit)
     return c.json(rides)
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -93,7 +94,7 @@ app.get('/api/chart-data', async (c) => {
     const chartData = await dbService.getChartData(startDate, endDate)
     return c.json(chartData)
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -137,7 +138,8 @@ app.post('/upload', async (c) => {
     const riderWeight = await dbService.getRiderWeight()
     // Parse the GPX file from text content
     log.info('📋 Parsing GPX file:', fileName)
-    const data = await gpxParser.parseFromText(fileContent, riderWeight)
+    const xmlData = await gpxParser.parseFromText(fileContent)
+    const data = await gpxParser.extractCyclingData(xmlData, riderWeight)
     log.info('✅ GPX file parsed successfully')
     
     // Do a content-based duplicate check
@@ -197,9 +199,10 @@ app.post('/api/analyze', async (c) => {
     }
     
     const fileContent = await file.text()
-    const data = await gpxParser.parseFromText(fileContent, 75) // Default rider weight 75kg
+    const xmlData = await gpxParser.parseFromText(fileContent) 
     
-
+    const data = await gpxParser.extractCyclingData(xmlData, 75) // Default rider weight 75kg
+    
     if(!skipSaveToDB) 
       try {
        // Save to database
@@ -212,7 +215,7 @@ app.post('/api/analyze', async (c) => {
     return c.json(data)
   } catch (error) {
     log.error('Error analyzing GPX file:', error) 
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -261,7 +264,7 @@ app.get('/api/database/overview', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database')
     log.error('Error getting database overview:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -283,7 +286,7 @@ app.get('/api/database/table/:tableName', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Table')
     log.error('Error getting table data:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -301,7 +304,7 @@ app.put('/api/database/table/:tableName/:recordId', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Update')
     log.error('Error updating record:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -318,7 +321,7 @@ app.delete('/api/database/table/:tableName/:recordId', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Delete')
     log.error('Error deleting record:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -345,7 +348,7 @@ app.post('/api/database/query', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Query')
     log.error('Error executing query:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -365,7 +368,7 @@ app.get('/api/database/export/:tableName', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Export')
     log.error('Error exporting table:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -379,7 +382,7 @@ app.post('/api/database/cleanup', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Cleanup')
     log.error('Error during cleanup:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -393,7 +396,7 @@ app.post('/api/database/optimize', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Optimize')
     log.error('Error optimizing database:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -414,7 +417,7 @@ app.post('/api/database/backup', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Backup')
     log.error('Error creating backup:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -431,7 +434,7 @@ app.get('/api/database/info', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:Info')
     log.error('Error getting database info:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -445,7 +448,7 @@ app.get('/api/database/initializeDefaultConfig', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:initializeDefaultConfig')
     log.error('Error getting database initializeDefaultConfig:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -459,7 +462,7 @@ app.get('/api/database/initialize', async (c) => {
   } catch (error) {
     const log = createLogger('API:Database:initialize')
     log.error('Error getting database initialize:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -483,7 +486,7 @@ app.post('/api/check-duplicate', async (c) => {
   } catch (error) {
     const log = createLogger('API:CheckDuplicate')
     log.error('Error checking duplicate:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -499,86 +502,20 @@ app.get('/api/geocode', async (c) => {
     const log = createLogger('API:Geocode')
     log.info(`🌍 Geocoding location: ${locationName}`)
     
-    // Get API key from environment variable
-    const apiKey = c.env.WEATHER_API_KEY
+    // Initialize weather service with API key
+    const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
     
-    if (!apiKey) {
-      log.warn('No weather API key found in environment, using demo mode')
-      // Return demo data for common cities
-      const demoData = getDemoLocationData(locationName)
-      if (demoData) {
-        return c.json({
-          success: true,
-          data: demoData,
-          demo: true
-        })
-      } else {
-        return c.json({ 
-          error: 'Location not found in demo data and no API key configured',
-          demo: true 
-        }, 404)
-      }
+    // Use the weather service to geocode the location
+    const result = await weatherService.geocodeLocation(locationName)
+    
+    if (!result.success) {
+      return c.json({ error: result.error }, 404)
     }
     
-    // Call OpenWeatherMap Geocoding API
-    const apiUrl = `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationName)}&limit=1&appid=${apiKey}`
-    const response = await fetch(apiUrl, {
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Geocoding API error: ${response.status}`)
-    }
-    
-    const data = await response.json()
-    
-    if (data.length === 0) {
-      // Fallback to demo data if API returns no results
-      const demoData = getDemoLocationData(locationName)
-      if (demoData) {
-        log.info('No API results found, falling back to demo data')
-        return c.json({
-          success: true,
-          data: demoData,
-          demo: true
-        })
-      }
-      return c.json({ error: 'Location not found' }, 404)
-    }
-    
-    const location = data[0]
-    const locationData = {
-      name: location.name,
-      country: location.country,
-      lat: location.lat,
-      lon: location.lon,
-      state: location.state || null
-    }
-    
-    log.info(`✅ Location found:`, locationData)
-    
-    return c.json({
-      success: true,
-      data: locationData,
-      demo: false
-    })
-    
+    return c.json(result)
   } catch (error) {
     const log = createLogger('API:Geocode')
     log.error('Error geocoding location:', error)
-    
-    // Fallback to demo data for common locations
-    const demoData = getDemoLocationData(locationName)
-    if (demoData) {
-      log.info('API error, falling back to demo data')
-      return c.json({
-        success: true,
-        data: demoData,
-        demo: true,
-        warning: `API error: ${error.message}`
-      })
-    }
-    
     return c.json({ error: `Geocoding failed: ${error.message}` }, 500)
   }
 })
@@ -597,307 +534,26 @@ app.get('/api/weather', async (c) => {
     const log = createLogger('API:Weather')
     log.info(`🌤️ Getting weather data for: ${location || `${lat},${lon}`}`)
     
-    // Get API key from environment variable
-    const apiKey = c.env.WEATHER_API_KEY
+    // Initialize weather service with API key
+    const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
     
-    if (!apiKey) {
-      log.warn('No weather API key found in environment, using demo weather data')
-      // Return demo weather data based on location
-      const demoData = getDemoWeatherData(location || 'London,GB')
-      return c.json({
-        success: true,
-        data: demoData,
-        demo: true
-      })
+    // Use the weather service to get weather data
+    const result = await weatherService.getWeather({ lat, lon, location })
+    
+    if (!result.success) {
+      return c.json({ error: result.error }, 400)
     }
     
-    let weatherLat = lat
-    let weatherLon = lon
-    
-    // If location is provided but no coordinates, geocode first
-    if (location && (!lat || !lon)) {
-      const geocodeUrl = `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`
-      const geocodeResponse = await fetch(geocodeUrl, {
-        signal: AbortSignal.timeout(5000)
-      })
-      
-      if (geocodeResponse.ok) {
-        const geocodeData = await geocodeResponse.json()
-        if (geocodeData.length > 0) {
-          weatherLat = geocodeData[0].lat.toString()
-          weatherLon = geocodeData[0].lon.toString()
-        }
-      }
-    }
-    
-    if (!weatherLat || !weatherLon) {
-      throw new Error('Could not determine coordinates for weather data')
-    }
-    
-    // Get current weather data
-    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${weatherLat}&lon=${weatherLon}&appid=${apiKey}&units=metric`
-    const currentResponse = await fetch(currentWeatherUrl, {
-      signal: AbortSignal.timeout(8000)
-    })
-    
-    if (!currentResponse.ok) {
-      throw new Error(`Current weather API error: ${currentResponse.status}`)
-    }
-    
-    const currentWeather = await currentResponse.json()
-    
-    // Get hourly forecast data
-    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${weatherLat}&lon=${weatherLon}&appid=${apiKey}&units=metric`
-    const forecastResponse = await fetch(forecastUrl, {
-      signal: AbortSignal.timeout(8000)
-    })
-    
-    if (!forecastResponse.ok) {
-      throw new Error(`Forecast API error: ${forecastResponse.status}`)
-    }
-    
-    const forecastWeather = await forecastResponse.json()
-    
-    // Process the weather data
-    const weatherData = processWeatherData(currentWeather, forecastWeather)
-    
-    log.info(`✅ Weather data retrieved successfully`)
-    
-    return c.json({
-      success: true,
-      data: weatherData,
-      demo: false
-    })
-    
+    return c.json(result)
   } catch (error) {
     const log = createLogger('API:Weather')
     log.error('Error getting weather data:', error)
-    
-    // Fallback to demo data
-    const demoData = getDemoWeatherData(location || 'London,GB')
-    return c.json({
-      success: true,
-      data: demoData,
-      demo: true,
-      warning: `API error: ${error.message}`
-    })
+    return c.json({ error: `Weather API failed: ${error.message}` }, 500)
   }
 })
 
-// Process OpenWeatherMap API response into frontend-compatible format
-function processWeatherData(currentWeather: any, forecastWeather: any) {
-  const current = {
-    temp: Math.round(currentWeather.main.temp),
-    condition: currentWeather.weather[0].description.split(' ').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' '),
-    humidity: currentWeather.main.humidity,
-    wind: Math.round(currentWeather.wind.speed * 3.6), // Convert m/s to km/h
-    pressure: currentWeather.main.pressure,
-    visibility: currentWeather.visibility ? Math.round(currentWeather.visibility / 1000) : 10,
-    uvIndex: 6, // UV index not available in current weather API
-    precipitationChance: 0 // Will be calculated from forecast data
-  }
-  
-  // Process hourly forecast data (next 24 hours)
-  const hourlyData = []
-  const now = new Date()
-  
-  for (let i = 0; i < Math.min(8, forecastWeather.list.length); i++) {
-    const forecast = forecastWeather.list[i]
-    const forecastDate = new Date(forecast.dt * 1000)
-    
-    hourlyData.push({
-      hour: forecastDate.getHours(),
-      temp: Math.round(forecast.main.temp),
-      windSpeed: Math.round(forecast.wind.speed * 3.6), // Convert m/s to km/h
-      precipitation: forecast.pop ? Math.round(forecast.pop * 100) : 0, // Probability of precipitation
-      condition: forecast.weather[0].description
-    })
-  }
-  
-  // Calculate average precipitation chance for current conditions
-  const avgPrecipitation = hourlyData.reduce((sum, h) => sum + h.precipitation, 0) / hourlyData.length
-  current.precipitationChance = Math.round(avgPrecipitation)
-  
-  // Generate temperature and wind ranges based on forecast data
-  const temps = hourlyData.map(h => h.temp)
-  const winds = hourlyData.map(h => h.windSpeed)
-  
-  const tempRange = {
-    min: Math.min(current.temp, ...temps) - 2,
-    max: Math.max(current.temp, ...temps) + 2
-  }
-  
-  const windRange = {
-    min: Math.max(0, Math.min(current.wind, ...winds) - 5),
-    max: Math.max(current.wind, ...winds) + 5
-  }
-  
-  // Generate 7-day forecast from available data
-  const dailyForecast = []
-  const processedDays = new Set()
-  
-  for (const forecast of forecastWeather.list) {
-    const forecastDate = new Date(forecast.dt * 1000)
-    const dayKey = forecastDate.toDateString()
-    
-    if (!processedDays.has(dayKey) && dailyForecast.length < 7) {
-      processedDays.add(dayKey)
-      
-      const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][forecastDate.getDay()]
-      const condition = forecast.weather[0].main
-      
-      // Map weather conditions to FontAwesome icons
-      let icon = 'fa-sun'
-      switch (condition.toLowerCase()) {
-        case 'clear':
-          icon = 'fa-sun'
-          break
-        case 'clouds':
-          icon = forecast.weather[0].description.includes('few') ? 'fa-cloud-sun' : 'fa-cloud'
-          break
-        case 'rain':
-        case 'drizzle':
-          icon = 'fa-cloud-rain'
-          break
-        case 'thunderstorm':
-          icon = 'fa-bolt'
-          break
-        case 'snow':
-          icon = 'fa-snowflake'
-          break
-        case 'mist':
-        case 'fog':
-          icon = 'fa-smog'
-          break
-        default:
-          icon = 'fa-cloud'
-      }
-      
-      dailyForecast.push({
-        day: dayName,
-        temp: Math.round(forecast.main.temp),
-        condition: forecast.weather[0].description.split(' ').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' '),
-        icon: icon
-      })
-    }
-  }
-  
-  return {
-    current,
-    tempRange,
-    windRange,
-    hourlyData,
-    dailyForecast
-  }
-}
 
-// Demo weather data helper function
-function getDemoWeatherData(location: string) {
-  const locationWeather: Record<string, any> = {
-    'London,GB': { 
-      temp: 18, condition: 'Cloudy', humidity: 75, wind: 15,
-      tempRange: { min: 12, max: 22 }, windRange: { min: 8, max: 25 }, precipitationChance: 70,
-      pressure: 1013, visibility: 10, uvIndex: 6
-    },
-    'Milan,IT': { 
-      temp: 24, condition: 'Sunny', humidity: 60, wind: 8,
-      tempRange: { min: 18, max: 30 }, windRange: { min: 3, max: 15 }, precipitationChance: 20,
-      pressure: 1015, visibility: 15, uvIndex: 8
-    },
-    'Paris,FR': { 
-      temp: 20, condition: 'Partly Cloudy', humidity: 68, wind: 12,
-      tempRange: { min: 15, max: 25 }, windRange: { min: 6, max: 20 }, precipitationChance: 45,
-      pressure: 1012, visibility: 12, uvIndex: 7
-    },
-    'Berlin,DE': { 
-      temp: 16, condition: 'Overcast', humidity: 72, wind: 18,
-      tempRange: { min: 10, max: 22 }, windRange: { min: 12, max: 28 }, precipitationChance: 60,
-      pressure: 1008, visibility: 8, uvIndex: 5
-    },
-    'Madrid,ES': { 
-      temp: 28, condition: 'Hot', humidity: 45, wind: 6,
-      tempRange: { min: 22, max: 35 }, windRange: { min: 2, max: 12 }, precipitationChance: 10,
-      pressure: 1020, visibility: 20, uvIndex: 9
-    }
-  }
-  
-  const weather = locationWeather[location] || locationWeather['London,GB']
-  
-  // Generate demo hourly data
-  const hourlyData = []
-  for (let i = 0; i < 24; i++) {
-    const hour = (new Date().getHours() + i) % 24
-    const tempVariation = Math.sin((hour - 6) / 24 * Math.PI * 2) * (weather.tempRange.max - weather.tempRange.min) / 4
-    hourlyData.push({
-      hour,
-      temp: Math.round(weather.temp + tempVariation + (Math.random() - 0.5) * 3),
-      windSpeed: Math.round(weather.wind + (Math.random() - 0.5) * 10),
-      precipitation: Math.round(weather.precipitationChance + (Math.random() - 0.5) * 30),
-      condition: weather.condition
-    })
-  }
-  
-  // Generate demo daily forecast
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const icons = ['fa-sun', 'fa-cloud-sun', 'fa-cloud', 'fa-cloud-rain', 'fa-cloud-sun', 'fa-sun', 'fa-cloud']
-  const dailyForecast = []
-  
-  for (let i = 0; i < 7; i++) {
-    dailyForecast.push({
-      day: days[i],
-      temp: Math.round(weather.temp + (Math.random() - 0.5) * 6),
-      condition: weather.condition,
-      icon: icons[i]
-    })
-  }
-  
-  return {
-    current: {
-      temp: weather.temp,
-      condition: weather.condition,
-      humidity: weather.humidity,
-      wind: weather.wind,
-      pressure: weather.pressure,
-      visibility: weather.visibility,
-      uvIndex: weather.uvIndex,
-      precipitationChance: weather.precipitationChance
-    },
-    tempRange: weather.tempRange,
-    windRange: weather.windRange,
-    hourlyData,
-    dailyForecast
-  }
-}
 
-// Demo location data helper function
-function getDemoLocationData(locationName: string) {
-  const demoLocations: Record<string, any> = {
-    'milan': { name: 'Milan', country: 'IT', lat: 45.4642, lon: 9.1900 },
-    'london': { name: 'London', country: 'GB', lat: 51.5074, lon: -0.1278 },
-    'paris': { name: 'Paris', country: 'FR', lat: 48.8566, lon: 2.3522 },
-    'berlin': { name: 'Berlin', country: 'DE', lat: 52.5200, lon: 13.4050 },
-    'madrid': { name: 'Madrid', country: 'ES', lat: 40.4168, lon: -3.7038 },
-    'rome': { name: 'Rome', country: 'IT', lat: 41.9028, lon: 12.4964 },
-    'amsterdam': { name: 'Amsterdam', country: 'NL', lat: 52.3676, lon: 4.9041 },
-    'barcelona': { name: 'Barcelona', country: 'ES', lat: 41.3851, lon: 2.1734 },
-    'vienna': { name: 'Vienna', country: 'AT', lat: 48.2082, lon: 16.3738 },
-    'prague': { name: 'Prague', country: 'CZ', lat: 50.0755, lon: 14.4378 },
-    'new york': { name: 'New York', country: 'US', lat: 40.7128, lon: -74.0060 },
-    'los angeles': { name: 'Los Angeles', country: 'US', lat: 34.0522, lon: -118.2437 },
-    'chicago': { name: 'Chicago', country: 'US', lat: 41.8781, lon: -87.6298 },
-    'toronto': { name: 'Toronto', country: 'CA', lat: 43.6532, lon: -79.3832 },
-    'sydney': { name: 'Sydney', country: 'AU', lat: -33.8688, lon: 151.2093 },
-    'tokyo': { name: 'Tokyo', country: 'JP', lat: 35.6762, lon: 139.6503 },
-    'singapore': { name: 'Singapore', country: 'SG', lat: 1.3521, lon: 103.8198 }
-  }
-  
-  const key = locationName.toLowerCase().trim()
-  return demoLocations[key] || null
-}
 
 // Configuration API endpoints
 app.get('/api/configuration', async (c) => {
@@ -910,7 +566,7 @@ app.get('/api/configuration', async (c) => {
   } catch (error) {
     const log = createLogger('API:Config')
     log.error('Error getting configuration:', error.message)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -935,7 +591,7 @@ app.put('/api/configuration/:key', async (c) => {
   } catch (error) {
     const log = createLogger('API:Config:Update')
     log.error('Error updating configuration:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -955,7 +611,7 @@ app.post('/api/configuration', async (c) => {
   } catch (error) {
     const log = createLogger('API:Config:Add')
     log.error('Error adding configuration:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
@@ -976,7 +632,7 @@ app.delete('/api/configuration/:key', async (c) => {
   } catch (error) {
     const log = createLogger('API:Config:Delete')
     log.error('Error deleting configuration:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 

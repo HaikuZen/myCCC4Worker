@@ -1061,11 +1061,11 @@ export class CyclingDatabase {
       0, // base MET
       Math.round(analysisData.analysis.caloriesBurned.estimated / analysisData.summary.distance),
       Math.round(analysisData.analysis.caloriesBurned.estimated / (analysisData.summary.totalTime / 3600)),
-      0, // wind speed
+      analysisData.analysis.weather.wind, // wind speed
       0, // wind direction
-      50, // humidity
-      20, // temperature
-      1013, // pressure
+      analysisData.analysis.weather.humidity, // humidity
+      analysisData.analysis.weather.temp, // temperature
+      analysisData.analysis.weather.pressure, // pressure
       'default', // weather source
       false, // elevation enhanced
       analysisData.summary.elevationGain > 0 // has elevation data
