@@ -31,6 +31,29 @@
             height: 300px;
             width: 100%;
         }
+        
+        /* Cookie Consent Banner Styles */
+        #cookieConsent {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            transform: translateY(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        #cookieConsent.show {
+            transform: translateY(0);
+        }
+        
+        .cookie-category-item {
+            transition: all 0.2s ease;
+        }
+        
+        .cookie-category-item:hover {
+            background-color: hsl(var(--b2));
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -751,13 +774,164 @@
         <label class="modal-backdrop" for="rideAnalysisModalToggle">Close</label>
     </div>
 
+    <!-- Cookie Consent Banner -->
+    <div id="cookieConsent" class="bg-base-100 shadow-2xl border-t-4 border-primary">
+        <div class="container mx-auto p-6 max-w-7xl">
+            <!-- Simple Banner View -->
+            <div id="cookieBannerSimple">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <i class="fas fa-cookie-bite text-2xl text-primary"></i>
+                            <h3 class="text-xl font-bold">Cookie Consent</h3>
+                        </div>
+                        <p class="text-sm text-base-content/70 max-w-3xl">
+                            We use cookies to enhance your experience, remember your preferences, and provide secure authentication. 
+                            By clicking "Accept All", you consent to our use of cookies. You can manage your preferences or learn more about our cookie usage.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="showCookieSettings()" class="btn btn-ghost btn-sm">
+                            <i class="fas fa-cog mr-2"></i>
+                            Customize
+                        </button>
+                        <button onclick="acceptEssentialCookies()" class="btn btn-outline btn-sm">
+                            Essential Only
+                        </button>
+                        <button onclick="acceptAllCookies()" class="btn btn-primary btn-sm">
+                            <i class="fas fa-check mr-2"></i>
+                            Accept All
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detailed Settings View -->
+            <div id="cookieSettings" class="hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold flex items-center gap-3">
+                        <i class="fas fa-shield-alt text-primary"></i>
+                        Cookie Preferences
+                    </h3>
+                    <button onclick="hideCookieSettings()" class="btn btn-ghost btn-sm btn-circle">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <p class="text-sm text-base-content/70 mb-6">
+                    We use different types of cookies to optimize your experience. You can choose which categories you'd like to allow.
+                </p>
+                
+                <div class="space-y-4 mb-6">
+                    <!-- Essential Cookies (Always On) -->
+                    <div class="cookie-category-item p-4 rounded-lg border border-base-300">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-shield-alt text-success"></i>
+                                    <h4 class="font-semibold">Essential Cookies</h4>
+                                    <span class="badge badge-success badge-sm">Always Active</span>
+                                </div>
+                                <p class="text-sm text-base-content/70 mb-2">
+                                    Required for the website to function properly. These cookies enable core functionality such as security, authentication, and network management.
+                                </p>
+                                <details class="text-xs text-base-content/60">
+                                    <summary class="cursor-pointer hover:text-primary">View cookies</summary>
+                                    <ul class="mt-2 ml-4 list-disc">
+                                        <li><strong>session_id</strong> - Authentication session (7 days)</li>
+                                        <li><strong>cookie_consent</strong> - Stores your cookie preferences (1 year)</li>
+                                        <li><strong>theme</strong> - Remembers your theme preference (persistent)</li>
+                                    </ul>
+                                </details>
+                            </div>
+                            <input type="checkbox" class="toggle toggle-success" checked disabled />
+                        </div>
+                    </div>
+                    
+                    <!-- Analytics Cookies -->
+                    <div class="cookie-category-item p-4 rounded-lg border border-base-300">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-chart-bar text-info"></i>
+                                    <h4 class="font-semibold">Analytics Cookies</h4>
+                                </div>
+                                <p class="text-sm text-base-content/70 mb-2">
+                                    Help us understand how you use the website. These cookies collect anonymous information about your visits and help us improve the application.
+                                </p>
+                                <details class="text-xs text-base-content/60">
+                                    <summary class="cursor-pointer hover:text-primary">View cookies</summary>
+                                    <ul class="mt-2 ml-4 list-disc">
+                                        <li><strong>analytics_id</strong> - Anonymous usage tracking (30 days)</li>
+                                        <li><strong>page_views</strong> - Track page navigation (session)</li>
+                                    </ul>
+                                </details>
+                            </div>
+                            <input type="checkbox" id="analyticsToggle" class="toggle toggle-info" onchange="updateCookieCategory('analytics', this.checked)" />
+                        </div>
+                    </div>
+                    
+                    <!-- Preferences Cookies -->
+                    <div class="cookie-category-item p-4 rounded-lg border border-base-300">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-sliders-h text-warning"></i>
+                                    <h4 class="font-semibold">Preference Cookies</h4>
+                                </div>
+                                <p class="text-sm text-base-content/70 mb-2">
+                                    Remember your preferences and settings for a personalized experience across sessions.
+                                </p>
+                                <details class="text-xs text-base-content/60">
+                                    <summary class="cursor-pointer hover:text-primary">View cookies</summary>
+                                    <ul class="mt-2 ml-4 list-disc">
+                                        <li><strong>dashboard_layout</strong> - Dashboard customization (persistent)</li>
+                                        <li><strong>chart_preferences</strong> - Chart display settings (persistent)</li>
+                                    </ul>
+                                </details>
+                            </div>
+                            <input type="checkbox" id="preferencesToggle" class="toggle toggle-warning" onchange="updateCookieCategory('preferences', this.checked)" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap gap-3 justify-end">
+                    <button onclick="rejectAllCookies()" class="btn btn-ghost btn-sm">
+                        <i class="fas fa-times mr-2"></i>
+                        Reject All
+                    </button>
+                    <button onclick="saveCustomCookiePreferences()" class="btn btn-primary btn-sm">
+                        <i class="fas fa-save mr-2"></i>
+                        Save Preferences
+                    </button>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-base-300">
+                    <p class="text-xs text-base-content/60 text-center">
+                        For more information, please read our 
+                        <a href="#" class="link link-primary" onclick="showPrivacyPolicy()">Privacy Policy</a> and 
+                        <a href="#" class="link link-primary" onclick="showCookiePolicy()">Cookie Policy</a>.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Footer -->
     <footer class="footer footer-center bg-base-300 text-base-content p-4">
         <aside>
             <p>© 2024 Cycling Calories Calculator. Built with HTMX, Chart.js, DaisyUI & Tailwind CSS</p>
+            <p class="text-xs mt-2">
+                <a href="#" class="link link-hover" onclick="showPrivacyPolicy()">Privacy Policy</a> · 
+                <a href="#" class="link link-hover" onclick="showCookiePolicy()">Cookie Policy</a> · 
+                <a href="#" class="link link-hover" onclick="reopenCookieConsent()">Cookie Settings</a>
+            </p>
         </aside>
     </footer>
 
+    <!-- Cookie Consent Script -->
+    <script src="cookie-consent.js"></script>
+    
     <!-- Custom JavaScript -->
     <script src="app.js" defer></script>
 </body>

@@ -53,6 +53,14 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🚪 **Protected Routes**: Authentication required for uploads and data management
 - 🔄 **Session Cleanup**: Automatic expired session removal
 
+### Privacy & Compliance
+- 🍪 **GDPR Cookie Consent**: Full GDPR-compliant cookie consent banner with granular controls
+- 🔐 **Email Privacy**: User emails masked in database with SHA-256 hashing
+- ✅ **Privacy by Design**: Essential cookies only by default, opt-in for analytics
+- 🎯 **Granular Control**: Users can customize cookie preferences by category
+- 📋 **Audit Trail**: Consent timestamp and version tracking for compliance
+- 🌍 **International Compliance**: Supports GDPR, ePrivacy, CCPA, LGPD, and POPIA regulations
+
 ### Technical Excellence
 - 🚀 **Edge Computing**: Minimal latency worldwide with Cloudflare's global network
 - 🎯 **Full TypeScript**: Completely typed codebase with modern development practices
@@ -145,12 +153,18 @@ myCCC/
 │   ├── database.html         # Database management page (admin only)
 │   ├── styles.css            # Application styles
 │   ├── app.js                # Main JavaScript with authentication
+│   ├── cookie-consent.js     # GDPR cookie consent management
 │   ├── database-manager.js   # Database management scripts
 │   └── test/                 # Web-based tests
 ├── wrangler.jsonc             # Cloudflare Workers configuration
 ├── schema.sql                 # Database schema with auth tables
 ├── database.js                # D1-compatible database class
+├── migrations/                # Database migrations
+│   ├── 001_add_email_hash.sql # Email privacy migration
+│   └── README.md             # Migration documentation
 ├── AUTHENTICATION_SETUP.md    # Google OAuth2 setup guide
+├── PRIVACY_IMPLEMENTATION.md  # Email privacy documentation
+├── GDPR_COOKIE_COMPLIANCE.md  # Cookie consent documentation
 └── package.json               # Dependencies and scripts
 ```
 
