@@ -64,6 +64,29 @@ CREATE TABLE IF NOT EXISTS configuration (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    google_id TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
+    email_hash TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    picture TEXT,
+    is_admin BOOLEAN DEFAULT 0,
+    last_login TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sessions table for session management
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rides_date ON rides (ride_date);
 CREATE INDEX IF NOT EXISTS idx_rides_distance ON rides (distance);
@@ -71,6 +94,10 @@ CREATE INDEX IF NOT EXISTS idx_rides_calories ON rides (total_calories);
 CREATE INDEX IF NOT EXISTS idx_breakdown_ride ON calorie_breakdown (ride_id);
 CREATE INDEX IF NOT EXISTS idx_config_key ON configuration (key);
 CREATE INDEX IF NOT EXISTS idx_config_category ON configuration (category);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id);
+CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users (email_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
 
 -- Insert default configuration values
 INSERT OR IGNORE INTO configuration (key, value, value_type, description, category) VALUES

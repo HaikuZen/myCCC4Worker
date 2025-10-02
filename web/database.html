@@ -33,6 +33,13 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .animate-pulse {
+            animation: pulse 0.5s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -46,12 +53,25 @@
             </a>
         </div>
         <div class="navbar-center">
-            <h1 class="text-xl font-bold">
-                <i class="fas fa-database text-primary mr-2"></i>
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fas fa-database text-primary"></i>
                 Database Manager
+                <span class="badge badge-error badge-sm">Admin Only</span>
             </h1>
         </div>
         <div class="navbar-end">
+            <!-- User Profile -->
+            <div id="userProfile" class="mr-4 hidden">
+                <div class="flex items-center gap-2">
+                    <img id="userAvatar" src="" alt="User" class="w-8 h-8 rounded-full">
+                    <div class="hidden md:block">
+                        <div id="userName" class="text-sm font-semibold"></div>
+                        <div id="userRole" class="text-xs text-base-content/70"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Database Status -->
             <div class="badge badge-outline" id="dbStatus">
                 <i class="fas fa-database mr-1"></i>
                 <span id="dbStatusText">Connecting...</span>
@@ -59,8 +79,78 @@
         </div>
     </div>
 
+    <!-- Authentication Loading State -->
+    <div id="authLoading" class="container mx-auto p-4 max-w-7xl">
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body items-center text-center py-16">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <h2 class="text-2xl font-bold mt-4">Verifying Access...</h2>
+                <p class="text-base-content/70">Checking your authentication and permissions</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Access Denied State -->
+    <div id="accessDenied" class="container mx-auto p-4 max-w-7xl hidden">
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body items-center text-center py-16">
+                <i class="fas fa-shield-alt text-6xl text-warning mb-4"></i>
+                <h2 class="text-2xl font-bold mb-2">Administrator Access Required</h2>
+                <p class="text-base-content/70 mb-4">The Database Management page is restricted to users with administrator privileges.</p>
+                
+                <div class="alert alert-info max-w-md mb-6">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="text-left">
+                        <div class="font-medium mb-1">Why am I seeing this?</div>
+                        <div class="text-sm">
+                            Database management allows direct access to sensitive data and system configurations.
+                            Only administrators can view, modify, or delete database records.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="text-sm text-base-content/70 mb-2">Redirecting to dashboard in</div>
+                    <div class="text-4xl font-bold text-primary" id="redirectCountdown">5</div>
+                    <div class="text-sm text-base-content/50 mt-2">seconds</div>
+                </div>
+                
+                <div class="flex gap-4">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home mr-2"></i>
+                        Go to Dashboard Now
+                    </a>
+                    <button onclick="cancelRedirect()" class="btn btn-outline">
+                        <i class="fas fa-times mr-2"></i>
+                        Cancel Redirect
+                    </button>
+                </div>
+                
+                <div class="divider">Need Help?</div>
+                
+                <div class="text-sm text-base-content/70 max-w-md">
+                    <p class="mb-2">If you need administrator access for legitimate reasons:</p>
+                    <ul class="text-left list-disc list-inside space-y-1">
+                        <li>Contact your system administrator</li>
+                        <li>Provide your email address: <span id="userEmailInfo" class="font-mono text-primary">Loading...</span></li>
+                        <li>Explain why you need database access</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Main Content -->
-    <div class="container mx-auto p-4 max-w-7xl">
+    <div id="mainContent" class="container mx-auto p-4 max-w-7xl hidden">
+        
+        <!-- Admin Access Notice -->
+        <div class="alert alert-info mb-6">
+            <i class="fas fa-shield-alt"></i>
+            <div>
+                <div class="font-medium">Administrator Access</div>
+                <div class="text-sm">You have full access to database management. Use caution when modifying data.</div>
+            </div>
+        </div>
         
         <!-- Database Overview -->
         <section class="mb-8">
@@ -97,6 +187,8 @@
                             <select id="tableSelect" class="select select-bordered select-sm">
                                 <option value="">Select Table</option>
                                 <option value="rides">Rides</option>
+                                <option value="users">Users</option>
+                                <option value="sessions">Sessions</option>
                                 <option value="calorie_breakdown">Calorie Breakdown</option>
                                 <option value="configuration">Configuration</option>
                             </select>

@@ -6,11 +6,16 @@ import { GPXParser } from './lib/gpx-parser'
 import { DatabaseService } from './lib/database-service'
 import { createLogger } from './lib/logger'
 import { WeatherService } from './lib/weather'
+import { AuthService, User } from './lib/auth'
 
 type Bindings = {
   DB: D1Database
   ASSETS: { fetch: any }
   WEATHER_API_KEY?: string
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  JWT_SECRET?: string
+  REDIRECT_URI?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -26,7 +31,7 @@ const gpxParser = new GPXParser()
 
 // Serve static files from the web directory
 app.get('/', serveStatic({ path: './index.html' }))
-app.get('/database', serveStatic({ path: './database.html' }))
+app.get('/database', requireAuth, requireAdmin, serveStatic({ path: './database.html' }))
 app.get('/database.html', serveStatic({ path: './database.html' }))
 app.get('/debug.html', serveStatic({ path: './test/debug.html' }))
 app.get('/debug-upload.html', serveStatic({ path: './test/debug-upload.html' }))
@@ -46,7 +51,7 @@ app.get('/test/index.html', serveStatic({ path: './test/index.html' }))
 app.get('/test/*', serveStatic({ root: './test' }))
 
 // API Routes
-app.get('/api/dashboard', async (c) => {
+app.get('/api/dashboard', requireAuth, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -71,7 +76,7 @@ app.get('/api/dashboard', async (c) => {
   }
 })
 
-app.get('/api/rides', async (c) => {
+app.get('/api/rides', requireAuth, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -84,7 +89,7 @@ app.get('/api/rides', async (c) => {
   }
 })
 
-app.get('/api/chart-data', async (c) => {
+app.get('/api/chart-data', requireAuth, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -99,7 +104,7 @@ app.get('/api/chart-data', async (c) => {
 })
 
 // GPX Upload endpoint
-app.post('/upload', async (c) => {
+app.post('/upload', requireAuth, async (c) => {
   try {
     const formData = await c.req.formData()
     const file = formData.get('gpxFile') as File
@@ -176,7 +181,7 @@ app.post('/upload', async (c) => {
     return c.html(`
       <div class="alert alert-error">
         <i class="fas fa-exclamation-triangle mr-2"></i>
-        <span>Error processing file: ${error.message}</span>
+        <span>Error processing file: ${(error as Error).message}</span>
       </div>
     `, 500)
   }
@@ -220,7 +225,7 @@ app.post('/api/analyze', async (c) => {
 })
 
 // Data filtering endpoint
-app.get('/filter-data', async (c) => {
+app.get('/filter-data', requireAuth, async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
   
@@ -241,7 +246,7 @@ app.get('/filter-data', async (c) => {
     return c.html(generateFilteredDataFromDB(filteredData, startDate, endDate))
   } catch (error) {
     const log = createLogger('Filter')
-    log.error('Error filtering data:', error.message)
+    log.error('Error filtering data:', (error as Error).message)
     // Fallback to mock data
     const mockData = generateFilteredData(startDate, endDate)
     return c.html(mockData)
@@ -249,7 +254,7 @@ app.get('/filter-data', async (c) => {
 })
 
 // Database management routes
-app.get('/api/database/overview', async (c) => {
+app.get('/api/database/overview', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)    
     await dbService.initialize()
@@ -269,10 +274,10 @@ app.get('/api/database/overview', async (c) => {
 })
 
 // Database table API endpoints
-app.get('/api/database/table/:tableName', async (c) => {
+app.get('/api/database/table/:tableName', requireAuth, requireAdmin, async (c) => {
   try {
     const tableName = c.req.param('tableName')
-    const validTables = ['rides', 'calorie_breakdown', 'configuration']
+    const validTables = ['rides', 'users', 'sessions', 'calorie_breakdown', 'configuration']
     
     if (!validTables.includes(tableName)) {
       return c.json({ error: 'Invalid table name' }, 400)
@@ -290,7 +295,7 @@ app.get('/api/database/table/:tableName', async (c) => {
   }
 })
 
-app.put('/api/database/table/:tableName/:recordId', async (c) => {
+app.put('/api/database/table/:tableName/:recordId', requireAuth, requireAdmin, async (c) => {
   try {
     const tableName = c.req.param('tableName')
     const recordId = c.req.param('recordId')
@@ -308,7 +313,7 @@ app.put('/api/database/table/:tableName/:recordId', async (c) => {
   }
 })
 
-app.delete('/api/database/table/:tableName/:recordId', async (c) => {
+app.delete('/api/database/table/:tableName/:recordId', requireAuth, requireAdmin, async (c) => {
   try {
     const tableName = c.req.param('tableName')
     const recordId = c.req.param('recordId')
@@ -326,7 +331,7 @@ app.delete('/api/database/table/:tableName/:recordId', async (c) => {
 })
 
 // Additional database management endpoints
-app.post('/api/database/query', async (c) => {
+app.post('/api/database/query', requireAuth, requireAdmin, async (c) => {
   try {
     const { query } = await c.req.json()
     
@@ -352,7 +357,7 @@ app.post('/api/database/query', async (c) => {
   }
 })
 
-app.get('/api/database/export/:tableName', async (c) => {
+app.get('/api/database/export/:tableName', requireAuth, requireAdmin, async (c) => {
   try {
     const tableName = c.req.param('tableName')
     
@@ -372,7 +377,7 @@ app.get('/api/database/export/:tableName', async (c) => {
   }
 })
 
-app.post('/api/database/cleanup', async (c) => {
+app.post('/api/database/cleanup', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -386,7 +391,7 @@ app.post('/api/database/cleanup', async (c) => {
   }
 })
 
-app.post('/api/database/optimize', async (c) => {
+app.post('/api/database/optimize', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -400,7 +405,7 @@ app.post('/api/database/optimize', async (c) => {
   }
 })
 
-app.post('/api/database/backup', async (c) => {
+app.post('/api/database/backup', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -421,7 +426,7 @@ app.post('/api/database/backup', async (c) => {
   }
 })
 
-app.get('/api/database/info', async (c) => {
+app.get('/api/database/info', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     const log = createLogger('API:Database:Info')
@@ -438,7 +443,7 @@ app.get('/api/database/info', async (c) => {
   }
 })
 
-app.get('/api/database/initializeDefaultConfig', async (c) => {
+app.get('/api/database/initializeDefaultConfig', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -452,7 +457,7 @@ app.get('/api/database/initializeDefaultConfig', async (c) => {
   }
 })
 
-app.get('/api/database/initialize', async (c) => {
+app.get('/api/database/initialize', requireAuth, requireAdmin, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize(true) // Force re-initialization
@@ -467,7 +472,7 @@ app.get('/api/database/initialize', async (c) => {
 })
 
 // Check for potential duplicates endpoint
-app.post('/api/check-duplicate', async (c) => {
+app.post('/api/check-duplicate', requireAuth, async (c) => {
   try {
     const { filename } = await c.req.json()
     
@@ -516,7 +521,7 @@ app.get('/api/geocode', async (c) => {
   } catch (error) {
     const log = createLogger('API:Geocode')
     log.error('Error geocoding location:', error)
-    return c.json({ error: `Geocoding failed: ${error.message}` }, 500)
+    return c.json({ error: `Geocoding failed: ${(error as Error).message}` }, 500)
   }
 })
 
@@ -548,13 +553,13 @@ app.get('/api/weather', async (c) => {
   } catch (error) {
     const log = createLogger('API:Weather')
     log.error('Error getting weather data:', error)
-    return c.json({ error: `Weather API failed: ${error.message}` }, 500)
+    return c.json({ error: `Weather API failed: ${(error as Error).message}` }, 500)
   }
 })
 
 
 // GPX download endpoint
-app.get('/api/rides/:rideId/gpx', async (c) => {
+app.get('/api/rides/:rideId/gpx', requireAuth, async (c) => {
   try {
     const rideId = parseInt(c.req.param('rideId'))
     
@@ -583,12 +588,12 @@ app.get('/api/rides/:rideId/gpx', async (c) => {
   } catch (error) {
     const log = createLogger('API:GPX:Download')
     log.error('Error downloading GPX file:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
 // Ride analysis endpoint
-app.get('/api/rides/:rideId/analysis', async (c) => {
+app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
   try {
     const rideId = parseInt(c.req.param('rideId'))
     
@@ -623,12 +628,12 @@ app.get('/api/rides/:rideId/analysis', async (c) => {
   } catch (error) {
     const log = createLogger('API:Ride:Analysis')
     log.error('Error getting ride analysis:', error)
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: (error as Error).message }, 500)
   }
 })
 
 // Configuration API endpoints
-app.get('/api/configuration', async (c) => {
+app.get('/api/configuration', requireAuth, async (c) => {
   try {
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
@@ -637,12 +642,12 @@ app.get('/api/configuration', async (c) => {
     return c.json(config)
   } catch (error) {
     const log = createLogger('API:Config')
-    log.error('Error getting configuration:', error.message)
+    log.error('Error getting configuration:', (error as Error).message)
     return c.json({ error: (error as Error).message }, 500)
   }
 })
 
-app.put('/api/configuration/:key', async (c) => {
+app.put('/api/configuration/:key', requireAuth, requireAdmin, async (c) => {
   try {
     const key = c.req.param('key')
     const { value, value_type } = await c.req.json()
@@ -667,7 +672,7 @@ app.put('/api/configuration/:key', async (c) => {
   }
 })
 
-app.post('/api/configuration', async (c) => {
+app.post('/api/configuration', requireAuth, requireAdmin, async (c) => {
   try {
     const { key, value, value_type, description, category } = await c.req.json()
     
@@ -687,7 +692,7 @@ app.post('/api/configuration', async (c) => {
   }
 })
 
-app.delete('/api/configuration/:key', async (c) => {
+app.delete('/api/configuration/:key', requireAuth, requireAdmin, async (c) => {
   try {
     const key = c.req.param('key')
     
@@ -705,6 +710,198 @@ app.delete('/api/configuration/:key', async (c) => {
     const log = createLogger('API:Config:Delete')
     log.error('Error deleting configuration:', error)
     return c.json({ error: (error as Error).message }, 500)
+  }
+})
+
+// ============= AUTHENTICATION ROUTES =============
+
+// Authentication middleware
+async function requireAuth(c: any, next: Function) {
+  const log = createLogger('Auth:Middleware')
+  try {
+    const authService = createAuthService(c.env, c.req.url)
+    const sessionId = authService.extractSessionFromCookie(c.req.header('Cookie'))
+    const user = await authService.validateSession(sessionId)
+   
+    log.info(`Authenticated user: ${user ? JSON.stringify(user) : 'none'}`)
+   
+    if (!user) {
+      return c.redirect('/login')
+    }
+    
+    c.set('user', user)
+    await next()
+  } catch (error) {    
+    log.error('Authentication error:', error)
+    return c.redirect('/login')
+  }
+}
+
+// Admin middleware
+async function requireAdmin(c: any, next: Function) {
+  const user = c.get('user')
+  if (!user || !user.is_admin) {
+    return c.json({ error: 'Admin access required' }, 403)
+  }
+  await next()
+}
+
+// Create auth service helper
+function createAuthService(env: Bindings, requestUrl?: string): AuthService {
+  // Determine redirect URI from environment variable or request URL
+  let redirectUri = env.REDIRECT_URI || ''
+  
+  // If no explicit redirect URI is set, construct from request URL
+  if (!redirectUri && requestUrl) {
+    const url = new URL(requestUrl)
+    redirectUri = `${url.protocol}//${url.host}/auth/callback`
+  }
+  
+  // Fallback for local development
+  if (!redirectUri) {
+    redirectUri = 'http://localhost:8787/auth/callback'
+  }
+  
+  const config = {
+    google_client_id: env.GOOGLE_CLIENT_ID || '',
+    google_client_secret: env.GOOGLE_CLIENT_SECRET || '',
+    redirect_uri: redirectUri,
+    jwt_secret: env.JWT_SECRET || 'default-secret'
+  }
+  
+  // Create DatabaseService for user operations
+  const dbService = new DatabaseService(env.DB)
+  
+  return new AuthService(env.DB, config, dbService)
+}
+
+// Login page
+app.get('/login', (c) => {
+  const authService = createAuthService(c.env, c.req.url)
+  const googleAuthUrl = authService.getGoogleAuthUrl()
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en" data-theme="light">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login - Cycling Calories Calculator</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    </head>
+    <body class="bg-base-200 min-h-screen flex items-center justify-center">
+        <div class="card w-96 bg-base-100 shadow-xl">
+            <div class="card-body items-center text-center">
+                <i class="fas fa-bicycle text-6xl text-primary mb-4"></i>
+                <h2 class="card-title text-2xl mb-2">Welcome Back!</h2>
+                <p class="text-base-content/70 mb-6">Sign in to access your cycling analytics</p>
+                
+                <div class="card-actions justify-center w-full">
+                    <a href="${googleAuthUrl}" class="btn btn-primary btn-wide">
+                        <i class="fab fa-google mr-2"></i>
+                        Sign in with Google
+                    </a>
+                </div>
+                
+                <div class="text-sm text-base-content/50 mt-4">
+                    <p>We use Google OAuth for secure authentication.</p>
+                    <p>No passwords stored on our servers.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
+})
+
+// OAuth callback
+app.get('/auth/callback', async (c) => {
+  const log = createLogger('Auth:Callback')
+  try {
+    const code = c.req.query('code')
+    const error = c.req.query('error')
+    
+    if (error) {
+      log.error('OAuth error:', error)
+      return c.redirect('/login?error=oauth_failed')
+    }
+    
+    if (!code) {
+      log.error('No authorization code received')
+      return c.redirect('/login?error=no_code')
+    }
+    
+    const authService = createAuthService(c.env, c.req.url)
+    
+    // Exchange code for token
+    const accessToken = await authService.exchangeCodeForToken(code)
+    
+    // Get user info from Google
+    const googleUser = await authService.getGoogleUserInfo(accessToken)
+    
+    // Find or create user in database
+    const user = await authService.findOrCreateUser(googleUser)
+    
+    // Create session
+    const sessionId = await authService.createSession(user.id)
+    
+    // Set cookie and redirect
+    const response = c.redirect('/')
+    response.headers.set('Set-Cookie', authService.createSessionCookie(sessionId))
+    
+    log.info(`User ${user.email} authenticated successfully`)
+    return response
+  } catch (error) {
+    log.error('OAuth callback error:', error)
+    return c.redirect('/login?error=auth_failed')
+  }
+})
+
+// Logout
+app.post('/auth/logout', async (c) => {
+  try {
+    const authService = createAuthService(c.env, c.req.url)
+    const sessionId = authService.extractSessionFromCookie(c.req.header('Cookie'))
+    
+    if (sessionId) {
+      await authService.deleteSession(sessionId)
+    }
+    
+    const response = c.redirect('/login')
+    response.headers.set('Set-Cookie', authService.createLogoutCookie())
+    return response
+  } catch (error) {
+    const log = createLogger('Auth:Logout')
+    log.error('Logout error:', error)
+    return c.redirect('/login')
+  }
+})
+
+// Current user info API
+app.get('/api/auth/user', async (c) => {
+  try {
+    const authService = createAuthService(c.env, c.req.url)
+    const sessionId = authService.extractSessionFromCookie(c.req.header('Cookie'))
+    const user = await authService.validateSession(sessionId)
+    
+    if (!user) {
+      return c.json({ authenticated: false })
+    }
+    
+    return c.json({ 
+      authenticated: true, 
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        picture: user.picture,
+        is_admin: user.is_admin
+      }
+    })
+  } catch (error) {
+    return c.json({ authenticated: false })
   }
 })
 

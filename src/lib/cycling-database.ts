@@ -1424,7 +1424,7 @@ export class CyclingDatabase {
   async getTableData(tableName: string): Promise<{ rows: any; columns: any }> {
     if (!this.isInitialized) await this.initialize()
 
-    const validTables = ['rides', 'calorie_breakdown', 'configuration']
+    const validTables = ['rides', 'calorie_breakdown', 'configuration', 'users', 'sessions']
     if (!validTables.includes(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`)
     }

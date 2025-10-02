@@ -4,9 +4,11 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 
 ## ✨ What's New in v2.0
 
+- 🔐 **Google OAuth2 Authentication**: Secure user authentication with Google accounts and session management
 - 🔬 **Detailed Ride Analysis Modal**: Click any ride to view comprehensive analysis with interactive charts
 - 📊 **Enhanced Dashboard**: Improved statistics with monthly summaries and performance trends  
 - 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
+- 👤 **User Management**: Role-based access with admin privileges for database management
 - 🎨 **Modern UI Redesign**: Beautiful interface with DaisyUI components and smooth animations
 - 📱 **Mobile Responsive**: Optimized experience across all devices
 - ⚡ **Performance Optimizations**: Faster loading with lazy loading and efficient data fetching
@@ -42,6 +44,15 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🔧 **Configuration Management**: Customizable settings stored in database
 - 🧹 **Database Optimization**: Built-in tools for database cleanup and optimization
 
+### Authentication & Security
+- 🔐 **Google OAuth2**: Secure authentication with Google accounts and session management
+- ⚡ **Auto-Configuration**: Automatic redirect URI detection - no hardcoded URLs
+- 👤 **User Profiles**: Rich user profiles with avatars, names, and role-based permissions
+- 🛡️ **Session Security**: HttpOnly cookies, CSRF protection, and automatic session cleanup (7-day sessions)
+- 🔒 **Role-Based Access**: Admin privileges for sensitive operations like database management
+- 🚪 **Protected Routes**: Authentication required for uploads and data management
+- 🔄 **Session Cleanup**: Automatic expired session removal
+
 ### Technical Excellence
 - 🚀 **Edge Computing**: Minimal latency worldwide with Cloudflare's global network
 - 🎯 **Full TypeScript**: Completely typed codebase with modern development practices
@@ -62,7 +73,26 @@ A modern, serverless web application for comprehensive cycling analytics and cal
    ```
    Then update `wrangler.jsonc` with your database ID.
 
-3. **Configure Weather API (Optional):**
+3. **Configure Google OAuth2 Authentication:**
+   Set up Google OAuth2 for secure user authentication:
+   ```bash
+   # Set Google OAuth2 credentials as secrets
+   npx wrangler secret put GOOGLE_CLIENT_ID
+   npx wrangler secret put GOOGLE_CLIENT_SECRET
+   npx wrangler secret put JWT_SECRET
+   
+   # (Optional) Set explicit redirect URI for custom domains
+   npx wrangler secret put REDIRECT_URI
+   ```
+   
+   **📋 Important**: Follow the detailed setup guide in [`AUTHENTICATION_SETUP.md`](AUTHENTICATION_SETUP.md) to:
+   - Create Google Cloud Console project
+   - Configure OAuth2 credentials and redirect URIs
+   - Set up authentication secrets
+   
+   **✨ Note**: The app automatically detects redirect URIs - no hardcoding needed!
+
+4. **Configure Weather API (Optional):**
    For live geocoding functionality, set up your OpenWeatherMap API key:
    ```bash
    # Set as secret (recommended for production)
@@ -72,7 +102,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
    Get your free API key from [OpenWeatherMap](https://openweathermap.org/api).
    Without an API key, the app will use demo geocoding data for common cities.
 
-4. **Initialize database schema:**
+5. **Initialize database schema:**
    ```bash
    npm run db:init
    ```
@@ -107,25 +137,36 @@ myCCC/
 │       ├── gpx-parser.ts     # GPX file parsing with TypeScript
 │       ├── database-service.ts # D1 database operations
 │       ├── cycling-database.ts # Legacy database compatibility
+│       ├── auth.ts           # Google OAuth2 authentication service
 │       ├── weather.ts        # Weather service module
 │       └── logger.ts         # Structured logging utility
 ├── web/                       # Static web application files
-│   ├── index.html            # Main page
-│   ├── database.html         # Database management page
+│   ├── index.html            # Main page with authentication UI
+│   ├── database.html         # Database management page (admin only)
 │   ├── styles.css            # Application styles
-│   ├── app.js                # Main JavaScript application
+│   ├── app.js                # Main JavaScript with authentication
 │   ├── database-manager.js   # Database management scripts
 │   └── test/                 # Web-based tests
 ├── wrangler.jsonc             # Cloudflare Workers configuration
-├── schema.sql                 # Database schema
+├── schema.sql                 # Database schema with auth tables
 ├── database.js                # D1-compatible database class
+├── AUTHENTICATION_SETUP.md    # Google OAuth2 setup guide
 └── package.json               # Dependencies and scripts
 ```
 
 ## Usage
 
+### Authentication
+**First-time setup**: The application requires Google OAuth2 authentication for security and user management.
+
+1. **Sign In**: Click the "Sign In" button in the top-right corner
+2. **Google OAuth**: Authenticate using your Google account
+3. **User Profile**: Your name, email, and avatar will appear in the navbar
+4. **Admin Access**: Administrators can access database management and advanced settings
+
 ### Getting Started
 1. **Upload GPX Files**: Use the modern web interface to upload your cycling GPX files
+   - **Authentication required**: Sign in with Google to access upload functionality
    - Drag & drop multiple files or click to browse
    - Files are automatically stored in the database for backup and future analysis
    - Intelligent duplicate detection prevents accidental re-uploads
@@ -160,13 +201,21 @@ myCCC/
 ## Database
 
 The application uses Cloudflare D1 (SQLite-compatible) to store:
-- Ride data (distance, duration, calories, elevation, etc.)
-- Original GPX file content as BLOB data for backup and re-analysis
-- Calorie breakdown information with detailed factors
-- Application configuration with typed values
-- Performance trends and analytics
+- **Ride data**: Distance, duration, calories, elevation, speed, and performance metrics
+- **GPX files**: Original GPX file content as BLOB data for backup and re-analysis
+- **User accounts**: Google OAuth2 user profiles with roles and permissions
+- **Sessions**: Secure session management with automatic cleanup
+- **Configuration**: Application settings with typed values and categories
+- **Analytics**: Calorie breakdown details and performance trends
 
 D1 provides a serverless SQLite database that scales automatically and is globally distributed.
+
+### Database Tables
+- `rides` - Core ride data and GPX storage
+- `users` - User profiles from Google OAuth2
+- `sessions` - Secure session management
+- `calorie_breakdown` - Detailed calorie calculation factors
+- `configuration` - Application settings and preferences
 
 ## Weather Service
 
@@ -207,7 +256,13 @@ Starting with the latest version, the application stores original GPX files in t
 
 The Cloudflare Workers application provides several API endpoints:
 
-### Data API
+### Authentication API
+- `GET /login` - Google OAuth2 login page
+- `GET /auth/callback` - OAuth2 callback handler
+- `POST /auth/logout` - User logout and session cleanup
+- `GET /api/auth/user` - Current user information and authentication status
+
+### Data API (🔐 Authentication Required)
 - `GET /api/dashboard` - Complete dashboard data with statistics, recent rides, chart data, monthly summary, and trends
 - `GET /api/rides?limit={n}` - Recent rides (default limit: 10)
 - `GET /api/rides/{rideId}/analysis` - **NEW**: Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
@@ -216,7 +271,7 @@ The Cloudflare Workers application provides several API endpoints:
 - `GET /api/geocode?location={name}` - Geocode location names to coordinates (requires WEATHER_API_KEY or falls back to demo data)
 - `GET /api/weather?location={name}` or `GET /api/weather?lat={lat}&lon={lon}` - Get current weather and forecast data with dynamic weather icons (requires WEATHER_API_KEY or falls back to demo data)
 
-### Upload & Processing
+### Upload & Processing (🔐 Authentication Required)
 - `POST /upload` - Upload and analyze GPX files (with duplicate detection)
   - Supports drag & drop file uploads
   - Automatic duplicate detection by filename and content
@@ -231,10 +286,10 @@ The Cloudflare Workers application provides several API endpoints:
   - Returns GPX file with proper content-type headers
   - Uses original filename or fallback naming
 
-### Database Management
+### Database Management (🔒 Admin Access Required)
 - `GET /api/database/overview` - Database statistics and overview
 - `GET /api/configuration` - Get all configuration settings
-- `GET /api/database/table/{tableName}` - View table data (rides, calorie_breakdown, configuration)
+- `GET /api/database/table/{tableName}` - View table data (rides, calorie_breakdown, configuration, users, sessions)
 - `PUT /api/database/table/{tableName}/{recordId}` - Update database records
 - `DELETE /api/database/table/{tableName}/{recordId}` - Delete database records
 - `GET /api/database/export/{tableName}` - Export table data as CSV
@@ -244,7 +299,8 @@ The Cloudflare Workers application provides several API endpoints:
 
 ### Static Routes
 - `GET /` - Main application dashboard
-- `GET /database` - Database management interface
+- `GET /login` - Google OAuth2 authentication page
+- `GET /database` - Database management interface (🔒 Admin only)
 - `GET /debug.html` - Debug interface
 - `GET /test/` - Test interface
 
@@ -266,11 +322,41 @@ The Cloudflare Workers application provides several API endpoints:
 - **Responsive**: Mobile-first design that works on all devices
 - **Architecture**: Component-based JavaScript with modular design
 
+## Authentication Configuration
+
+### Automatic Redirect URI Detection
+
+The application automatically constructs the OAuth2 redirect URI based on the incoming request:
+- **Production**: Detects your actual Worker URL
+- **Development**: Uses `http://localhost:8787/auth/callback`
+- **Custom Domains**: Set explicit `REDIRECT_URI` secret if needed
+
+No hardcoded URLs to update! Just configure your Google OAuth2 credentials and you're ready.
+
+### Required Environment Variables
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `GOOGLE_CLIENT_ID` | OAuth2 Client ID | Yes |
+| `GOOGLE_CLIENT_SECRET` | OAuth2 Client Secret | Yes |
+| `JWT_SECRET` | Session signing key | Yes |
+| `REDIRECT_URI` | Explicit callback URL | Optional |
+| `WEATHER_API_KEY` | OpenWeatherMap API | Optional |
+
+See [`AUTHENTICATION_SETUP.md`](AUTHENTICATION_SETUP.md) for detailed configuration.
+
 ## Requirements
 
+### Development & Deployment
 - Node.js >= 18.0.0
 - Cloudflare account (free tier available)
 - Modern web browser with JavaScript enabled
+- Wrangler CLI (`npm install -g wrangler`)
+
+### Authentication Setup
+- Google Cloud Console account (free)
+- Google OAuth2 application configured
+- Gmail account for testing authentication
 
 ## Development
 
@@ -291,26 +377,69 @@ This starts a local server at `http://localhost:8787` with:
 - Run `wrangler d1 execute cycling-data --local --command="SELECT * FROM rides;"` for direct database queries
 - Schema changes are managed via `schema.sql`
 
+### Authentication Development
+- Login page available at `/login` with Google OAuth2 integration
+- User authentication state managed via secure sessions
+- Admin users can access `/database` for data management
+- Test authentication with any Gmail account during development
+
 ### Debugging
 - Structured logging throughout the application
 - Debug interface available at `/debug.html`
 - Test interface at `/test/`
+- Authentication logs available via `wrangler tail` for troubleshooting OAuth issues
 
 ## Deployment
 
 Deploy to Cloudflare Workers:
 
+### Prerequisites
+
+1. **Configure Google OAuth2** (see [`AUTHENTICATION_SETUP.md`](AUTHENTICATION_SETUP.md))
+2. **Set secrets** before first deployment
+
+### Deployment Steps
+
 ```bash
+# 1. Verify secrets are set
+wrangler secret list
+
+# 2. If not set, configure authentication secrets
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+wrangler secret put JWT_SECRET
+
+# 3. Deploy the application
 npm run deploy
 ```
 
-This will:
-1. Build the TypeScript source code
-2. Deploy to Cloudflare Workers
-3. Set up D1 database bindings
-4. Configure static asset serving
+### What Happens During Deployment
 
-Your app will be available at `https://your-worker-name.your-subdomain.workers.dev`
+1. TypeScript source code builds with authentication
+2. Deploys to Cloudflare Workers global network
+3. D1 database bindings configured (auth tables included)
+4. Static assets served from edge
+5. OAuth2 authentication enabled
+6. Redirect URI automatically detected from Worker URL
+
+Your app will be available at: `https://your-worker-name.your-subdomain.workers.dev`
+
+### Post-Deployment
+
+1. **Add redirect URI to Google Console**:
+   - Go to Google Cloud Console > APIs & Services > Credentials
+   - Add: `https://your-actual-worker-url.workers.dev/auth/callback`
+
+2. **Test authentication**:
+   - Visit your Worker URL
+   - Click "Sign In"
+   - Complete Google OAuth flow
+
+3. **Make first user admin** (if needed):
+   ```bash
+   wrangler d1 execute cycling-data --remote --command="SELECT id, email FROM users;"
+   wrangler d1 execute cycling-data --remote --command="UPDATE users SET is_admin = 1 WHERE id = YOUR_USER_ID;"
+   ```
 
 ## License
 

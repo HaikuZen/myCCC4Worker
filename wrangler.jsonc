@@ -52,6 +52,33 @@
     // Or uncomment and set directly (not recommended for production):
     // "WEATHER_API_KEY": "your-openweather-api-key-here"
   },
+  
+  // ==============================================================================
+  // 🔐 AUTHENTICATION CONFIGURATION
+  // ==============================================================================
+  // Set these secrets for Google OAuth2 authentication:
+  // 
+  // 1. Create a Google Cloud Console project: https://console.cloud.google.com
+  // 2. Enable Google+ API and create OAuth2 credentials
+  // 3. Set authorized redirect URIs:
+  //    - Production: https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/auth/callback
+  //    - Local dev: http://localhost:8787/auth/callback
+  //
+  // 4. Set the secrets using wrangler:
+  //    wrangler secret put GOOGLE_CLIENT_ID
+  //    wrangler secret put GOOGLE_CLIENT_SECRET  
+  //    wrangler secret put JWT_SECRET
+  //
+  // 5. (Optional) Set explicit redirect URI:
+  //    wrangler secret put REDIRECT_URI
+  //    Note: If not set, the app will auto-detect from the request URL
+  //
+  // For development, you can also set these in vars (NOT recommended for production):
+  // "GOOGLE_CLIENT_ID": "your-google-client-id.apps.googleusercontent.com",
+  // "GOOGLE_CLIENT_SECRET": "your-google-client-secret",
+  // "JWT_SECRET": "your-jwt-secret-key",
+  // "REDIRECT_URI": "http://localhost:8787/auth/callback"
+  
   // Weather API Configuration
   // Set WEATHER_API_KEY as a secret for live geocoding functionality:
   // wrangler secret put WEATHER_API_KEY

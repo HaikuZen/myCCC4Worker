@@ -1,10 +1,186 @@
 // Global variables for charts
 let charts = {};
+let currentUser = null;
 
 // Theme management
 function setTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+}
+
+// ============= AUTHENTICATION FUNCTIONS =============
+
+// Initialize authentication
+async function initializeAuthentication() {
+    console.log('🔐 Initializing authentication...');
+    
+    try {
+        const response = await fetch('/api/auth/user');
+        const authData = await response.json();
+        
+        if (authData.authenticated && authData.user) {
+            currentUser = authData.user;
+            showAuthenticatedState(authData.user);
+            console.log('✅ User authenticated:', authData.user.name);
+        } else {
+            showUnauthenticatedState();
+            console.log('ℹ️ User not authenticated');
+        }
+    } catch (error) {
+        console.error('❌ Authentication check failed:', error);
+        showUnauthenticatedState();
+    }
+}
+
+// Show authenticated user state
+function showAuthenticatedState(user) {
+    const authLoading = document.getElementById('authLoading');
+    const notAuthenticated = document.getElementById('notAuthenticated');
+    const authenticated = document.getElementById('authenticated');
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    const userAvatar = document.getElementById('userAvatar');
+    const userAvatarLarge = document.getElementById('userAvatarLarge');
+    const adminMenuItems = document.getElementById('adminMenuItems');
+    
+    // Hide loading and not authenticated states
+    authLoading.classList.add('hidden');
+    notAuthenticated.classList.add('hidden');
+    
+    // Show authenticated state
+    authenticated.classList.remove('hidden');
+    authenticated.classList.add('flex');
+    
+    // Set user info
+    userName.textContent = user.name;
+    userEmail.textContent = user.email;
+    
+    // Set user avatars
+    const avatarUrl = user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=570df8&color=fff`;
+    userAvatar.src = avatarUrl;
+    userAvatarLarge.src = avatarUrl;
+    
+    // Show admin menu items if user is admin
+    if (user.is_admin) {
+        adminMenuItems.classList.remove('hidden');
+    }
+    
+    // Show upload section when authenticated
+    const uploadSection = document.getElementById('upload');
+    if (uploadSection) {
+        uploadSection.classList.remove('hidden');
+    }
+    
+    // Show upload navigation links
+    showUploadNavLinks();
+    
+    // Remove sample data label if present
+    removeSampleDataLabel();
+}
+
+// Show unauthenticated state
+function showUnauthenticatedState() {
+    const authLoading = document.getElementById('authLoading');
+    const notAuthenticated = document.getElementById('notAuthenticated');
+    const authenticated = document.getElementById('authenticated');
+    
+    // Hide loading and authenticated states
+    authLoading.classList.add('hidden');
+    authenticated.classList.add('hidden');
+    
+    // Show not authenticated state
+    notAuthenticated.classList.remove('hidden');
+    
+    // Hide upload section when not authenticated
+    const uploadSection = document.getElementById('upload');
+    if (uploadSection) {
+        uploadSection.classList.add('hidden');
+    }
+    
+    // Hide upload navigation links
+    hideUploadNavLinks();
+    
+    // Add sample data label to statistics section
+    addSampleDataLabel();
+}
+
+// Check if user is authenticated
+function isAuthenticated() {
+    return currentUser !== null;
+}
+
+// Check if user is admin
+function isAdmin() {
+    return currentUser && currentUser.is_admin;
+}
+
+// Add sample data label to statistics section
+function addSampleDataLabel() {
+    const statsSection = document.getElementById('stats');
+    if (!statsSection) return;
+    
+    // Check if label already exists
+    if (document.getElementById('sampleDataLabel')) return;
+    
+    // Find the flex container that holds the title
+    const titleContainer = statsSection.querySelector('.flex.justify-between');
+    if (titleContainer) {
+        const label = document.createElement('div');
+        label.id = 'sampleDataLabel';
+        label.className = 'badge badge-warning gap-2';
+        label.innerHTML = '<i class="fas fa-exclamation-triangle"></i>Using Sample Data';
+        titleContainer.appendChild(label);
+    }
+}
+
+// Remove sample data label from statistics section
+function removeSampleDataLabel() {
+    const label = document.getElementById('sampleDataLabel');
+    if (label) {
+        label.remove();
+    }
+}
+
+// Hide upload navigation links
+function hideUploadNavLinks() {
+    // Hide all navigation links to upload section
+    document.querySelectorAll('a[href="#upload"]').forEach(link => {
+        link.style.display = 'none';
+    });
+}
+
+// Show upload navigation links
+function showUploadNavLinks() {
+    // Show all navigation links to upload section
+    document.querySelectorAll('a[href="#upload"]').forEach(link => {
+        link.style.display = '';
+    });
+}
+
+// Require authentication for sensitive operations
+function requireAuth(operation = 'perform this action') {
+    if (!isAuthenticated()) {
+        showMessage(`Please sign in to ${operation}`, 'warning');
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 2000);
+        return false;
+    }
+    return true;
+}
+
+// Require admin privileges
+function requireAdmin(operation = 'perform this action') {
+    if (!requireAuth(operation)) {
+        return false;
+    }
+    
+    if (!isAdmin()) {
+        showMessage(`Administrator privileges required to ${operation}`, 'error');
+        return false;
+    }
+    
+    return true;
 }
 
 // Load saved theme on page load
@@ -14,6 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
+    
+    // Initialize authentication first
+    initializeAuthentication();
     
     // Initialize all functionality
     initializeFileUpload();

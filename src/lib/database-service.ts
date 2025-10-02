@@ -1,5 +1,6 @@
 import { createLogger } from './logger'
 import { CyclingDatabase, GlobalStatistics, RideRecord } from './cycling-database'
+import type { User, GoogleUserInfo } from './auth'
 
 /**
  * Database Service - Database-agnostic service layer
@@ -12,6 +13,60 @@ export class DatabaseService extends CyclingDatabase{
   constructor(database: D1Database ) {
     super(database) 
     this.logger.info('DatabaseService initialized with provided database instance.') 
+  }
+
+  /**
+   * Mask email address for privacy
+   * Example: john.doe@example.com -> j***e@e***e.com
+   */
+  private maskEmail(email: string): string {
+    if (!email || !email.includes('@')) {
+      return email
+    }
+
+    const [localPart, domain] = email.split('@')
+    
+    // Mask local part: keep first and last character, mask the rest
+    let maskedLocal = localPart
+    if (localPart.length > 2) {
+      maskedLocal = localPart[0] + '*'.repeat(Math.min(localPart.length - 2, 3)) + localPart[localPart.length - 1]
+    } else if (localPart.length === 2) {
+      maskedLocal = localPart[0] + '*'
+    } else {
+      maskedLocal = '*'
+    }
+
+    // Mask domain: keep first character and TLD, mask the rest
+    const domainParts = domain.split('.')
+    if (domainParts.length >= 2) {
+      const domainName = domainParts[0]
+      const tld = domainParts.slice(1).join('.')
+      
+      let maskedDomain = domainName
+      if (domainName.length > 2) {
+        maskedDomain = domainName[0] + '*'.repeat(Math.min(domainName.length - 2, 3)) + domainName[domainName.length - 1]
+      } else if (domainName.length === 2) {
+        maskedDomain = domainName[0] + '*'
+      } else {
+        maskedDomain = '*'
+      }
+      
+      return `${maskedLocal}@${maskedDomain}.${tld}`
+    }
+
+    return `${maskedLocal}@${domain}`
+  }
+
+  /**
+   * Hash email for unique identification while preserving privacy
+   * Uses SHA-256 to create a one-way hash
+   */
+  private async hashEmail(email: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(email.toLowerCase().trim())
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
   
@@ -441,6 +496,114 @@ export class DatabaseService extends CyclingDatabase{
       return await super.getGpxData(rideId)
     } catch (error) {
       this.logger.error('Error getting GPX data:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Find user by Google ID or email hash
+   */
+  async findUserByGoogleIdOrEmail(googleId: string, email: string): Promise<User | null> {
+    try {
+      // Hash the email for comparison
+      const emailHash = await this.hashEmail(email)
+      
+      const user = await this.db
+        .prepare('SELECT * FROM users WHERE google_id = ? OR email_hash = ?')
+        .bind(googleId, emailHash)
+        .first<User>()
+      
+      return user || null
+    } catch (error) {
+      this.logger.error('Error finding user by Google ID or email:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update user's last login time
+   */
+  async updateUserLastLogin(userId: number): Promise<void> {
+    try {
+      const now = new Date().toISOString()
+      await this.db
+        .prepare('UPDATE users SET last_login = ?, updated_at = ? WHERE id = ?')
+        .bind(now, now, userId)
+        .run()
+      
+      this.logger.info(`Updated last login for user ${userId}`)
+    } catch (error) {
+      this.logger.error('Error updating user last login:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new user from Google OAuth data
+   * Stores masked email and email hash for privacy
+   */
+  async createUserFromGoogleData(googleUser: GoogleUserInfo): Promise<User> {
+    try {
+      const now = new Date().toISOString()
+      const maskedEmail = this.maskEmail(googleUser.email)
+      const emailHash = await this.hashEmail(googleUser.email)
+      
+      const result = await this.db
+        .prepare(`
+          INSERT INTO users (google_id, email, email_hash, name, picture, last_login)
+          VALUES (?, ?, ?, ?, '', ?) 
+        `) // Empty string for picture 
+        .bind(
+          googleUser.id,
+          maskedEmail,
+          emailHash,
+          googleUser.name,
+          googleUser.picture || null,
+          now
+        )
+        .run()
+      
+      if (!result.success || !result.meta.last_row_id) {
+        throw new Error('Failed to create user')
+      }
+      
+      const newUser = await this.db
+        .prepare('SELECT * FROM users WHERE id = ?')
+        .bind(result.meta.last_row_id)
+        .first<User>()
+      
+      if (!newUser) {
+        throw new Error('Failed to retrieve created user')
+      }
+      
+      this.logger.info(`New user created: ${maskedEmail} (ID: ${newUser.id})`)
+      return newUser
+    } catch (error) {
+      this.logger.error('Error creating user from Google data:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Find or create user from Google OAuth data
+   */
+  async findOrCreateUser(googleUser: GoogleUserInfo): Promise<User> {
+    try {
+      // Check if user already exists
+      const existingUser = await this.findUserByGoogleIdOrEmail(googleUser.id, googleUser.email)
+      
+      if (existingUser) {
+        // Update last login
+        await this.updateUserLastLogin(existingUser.id)
+        this.logger.info(`User ${existingUser.email} logged in`)
+        return existingUser
+      }
+      
+      // Create new user
+      const newUser = await this.createUserFromGoogleData(googleUser)
+      return newUser
+    } catch (error) {
+      this.logger.error('Error finding or creating user:', error)
       throw error
     }
   }
