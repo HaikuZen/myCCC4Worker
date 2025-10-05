@@ -33,6 +33,8 @@ const gpxParser = new GPXParser()
 app.get('/', serveStatic({ path: './index.html' }))
 app.get('/database', requireAuth, requireAdmin, serveStatic({ path: './database.html' }))
 app.get('/database.html', serveStatic({ path: './database.html' }))
+app.get('/configuration', requireAuth, requireAdmin, serveStatic({ path: './configuration.html' }))
+app.get('/configuration.html', serveStatic({ path: './configuration.html' }))
 app.get('/debug.html', serveStatic({ path: './test/debug.html' }))
 app.get('/debug-upload.html', serveStatic({ path: './test/debug-upload.html' }))
 app.get('/test-weather.html', serveStatic({ path: './test/test-weather.html' }))
@@ -42,7 +44,9 @@ app.get('/index-tests.html', serveStatic({ path: './test/index-tests.html' }))
 // Static assets
 app.get('/styles.css', serveStatic({ path: './styles.css' }))
 app.get('/app.js', serveStatic({ path: './app.js' }))
+app.get('/auth.js', serveStatic({ path: './auth.js' }))
 app.get('/database-manager.js', serveStatic({ path: './database-manager.js' }))
+app.get('/configuration-manager.js', serveStatic({ path: './configuration-manager.js' }))
 app.get('/index-new.js', serveStatic({ path: './index-new.js' }))
 
 // Test files - serve from ./test/ subdirectory

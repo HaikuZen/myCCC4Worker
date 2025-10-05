@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cycling Calories Calculator - Dashboard</title>
     
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#570df8">
+    
     <!-- Tailwind CSS with DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
@@ -69,8 +78,12 @@
                     <li><a href="#upload"><i class="fas fa-upload mr-2"></i>Upload GPX</a></li>
                     <li><a href="#stats"><i class="fas fa-chart-line mr-2"></i>Statistics</a></li>
                     <li><a href="#weather"><i class="fas fa-cloud-sun mr-2"></i>Weather</a></li>
-                    <li><a href="#configuration"><i class="fas fa-cog mr-2"></i>Configuration</a></li>
-                    <li><a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a></li>
+                    <li id="mobileAdminLinks" class="hidden">
+                        <a href="/configuration" target="_blank"><i class="fas fa-cog mr-2"></i>Configuration</a>
+                    </li>
+                    <li id="mobileAdminLinks2" class="hidden">
+                        <a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a>
+                    </li>
                 </ul>
             </div>
             <a class="btn btn-ghost text-xl">
@@ -84,8 +97,12 @@
                 <li><a href="#upload"><i class="fas fa-upload mr-2"></i>Upload GPX</a></li>
                 <li><a href="#stats"><i class="fas fa-chart-line mr-2"></i>Statistics</a></li>
                 <li><a href="#weather"><i class="fas fa-cloud-sun mr-2"></i>Weather</a></li>
-                <li><a href="#configuration"><i class="fas fa-cog mr-2"></i>Configuration</a></li>
-                <li><a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a></li>
+                <li id="desktopConfigLink" class="hidden">
+                    <a href="/configuration" target="_blank"><i class="fas fa-cog mr-2"></i>Configuration</a>
+                </li>
+                <li id="desktopDatabaseLink" class="hidden">
+                    <a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database</a>
+                </li>
             </ul>
         </div>
         <div class="navbar-end">
@@ -119,8 +136,10 @@
                             </li>
                             <li><hr></li>
                             <li><a href="#dashboard"><i class="fas fa-user mr-2"></i>Profile</a></li>
-                            <li><a href="#configuration"><i class="fas fa-cog mr-2"></i>Settings</a></li>
-                            <li id="adminMenuItems" class="hidden">
+                            <li id="adminMenuConfig" class="hidden">
+                                <a href="/configuration" target="_blank"><i class="fas fa-cog mr-2"></i>Configuration</a>
+                            </li>
+                            <li id="adminMenuDatabase" class="hidden">
                                 <a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database Admin</a>
                             </li>
                             <li><hr></li>
@@ -604,48 +623,7 @@
             </div>
         </section>
 
-        <!-- Configuration Section -->
-        <section id="configuration" class="mb-8">
-            <div class="card bg-base-100 shadow-xl">
-                <div class="card-body">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="card-title text-2xl">
-                            <i class="fas fa-cog text-primary"></i>
-                            Configuration
-                        </h2>
-                        <div class="flex gap-2">
-                            <button id="refreshConfig" class="btn btn-outline btn-sm">
-                                <i class="fas fa-sync-alt mr-2"></i>
-                                Refresh
-                            </button>
-                            <button id="saveAllConfig" class="btn btn-primary btn-sm" disabled>
-                                <i class="fas fa-save mr-2"></i>
-                                Save All Changes
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-info mb-4">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <div class="font-medium">Configuration Settings</div>
-                            <div class="text-sm">Modify application settings below. Changes are saved to the database and take effect immediately.</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Configuration Loading -->
-                    <div id="config-loading" class="text-center py-8">
-                        <span class="loading loading-spinner loading-lg text-primary"></span>
-                        <p class="mt-2 text-base-content/70">Loading configuration...</p>
-                    </div>
-                    
-                    <!-- Configuration Content -->
-                    <div id="config-content" class="hidden">
-                        <!-- Configuration categories will be loaded here -->
-                    </div>
-                </div>
-            </div>
-        </section>
+        <!-- Configuration Section - Moved to /configuration (Admin Only) -->
     </div>
 
     <!-- Ride Analysis Modal -->
@@ -920,7 +898,7 @@
     <!-- Footer -->
     <footer class="footer footer-center bg-base-300 text-base-content p-4">
         <aside>
-            <p>© 2024 Cycling Calories Calculator. Built with HTMX, Chart.js, DaisyUI & Tailwind CSS</p>
+            <p>© 2025 Cycling Calories Calculator. Built with HTMX, Chart.js, DaisyUI & Tailwind CSS</p>
             <p class="text-xs mt-2">
                 <a href="#" class="link link-hover" onclick="showPrivacyPolicy()">Privacy Policy</a> · 
                 <a href="#" class="link link-hover" onclick="showCookiePolicy()">Cookie Policy</a> · 
