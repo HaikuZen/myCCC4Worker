@@ -5,6 +5,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 ## ✨ What's New in v2.0
 
 - 🔐 **Google OAuth2 Authentication**: Secure user authentication with Google accounts and session management
+- 👥 **User-Specific Rides**: Each ride is now associated with the user who uploaded it, ensuring data privacy
 - 🔬 **Detailed Ride Analysis Modal**: Click any ride to view comprehensive analysis with interactive charts
 - 📊 **Enhanced Dashboard**: Improved statistics with monthly summaries and performance trends  
 - 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
@@ -45,9 +46,10 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🧹 **Database Optimization**: Built-in tools for database cleanup and optimization
 
 ### Authentication & Security
-- 🔐 **Google OAuth2**: Secure authentication with Google accounts and session management
+- 🔐 **Google OAuth2**: Secure user authentication with Google accounts and session management
 - ⚡ **Auto-Configuration**: Automatic redirect URI detection - no hardcoded URLs
 - 👤 **User Profiles**: Rich user profiles with avatars, names, and role-based permissions
+- 👥 **User Data Isolation**: Each user sees only their own rides and statistics
 - 🛡️ **Session Security**: HttpOnly cookies, CSRF protection, and automatic session cleanup (7-day sessions)
 - 🔒 **Role-Based Access**: Admin privileges for sensitive operations like database management
 - 🚪 **Protected Routes**: Authentication required for uploads and data management
@@ -56,6 +58,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 ### Privacy & Compliance
 - 🍪 **GDPR Cookie Consent**: Full GDPR-compliant cookie consent banner with granular controls
 - 🔐 **Email Privacy**: User emails masked in database with SHA-256 hashing
+- 🔒 **Data Privacy**: Rides are associated with users - each user sees only their own data
 - ✅ **Privacy by Design**: Essential cookies only by default, opt-in for analytics
 - 🎯 **Granular Control**: Users can customize cookie preferences by category
 - 📋 **Audit Trail**: Consent timestamp and version tracking for compliance
@@ -160,10 +163,12 @@ myCCC/
 ├── schema.sql                 # Database schema with auth tables
 ├── database.js                # D1-compatible database class
 ├── migrations/                # Database migrations
-│   ├── 001_add_email_hash.sql # Email privacy migration
+│   ├── 0001_add_email_hash.sql # Email privacy migration
+│   ├── 0002_add_user_id_to_rides.sql # User-ride association
 │   └── README.md             # Migration documentation
 ├── AUTHENTICATION_SETUP.md    # Google OAuth2 setup guide
 ├── PRIVACY_IMPLEMENTATION.md  # Email privacy documentation
+├── USER_RIDE_ASSOCIATION.md   # User-ride relationship documentation
 ├── GDPR_COOKIE_COMPLIANCE.md  # Cookie consent documentation
 └── package.json               # Dependencies and scripts
 ```
@@ -181,12 +186,14 @@ myCCC/
 ### Getting Started
 1. **Upload GPX Files**: Use the modern web interface to upload your cycling GPX files
    - **Authentication required**: Sign in with Google to access upload functionality
+   - **Personal rides**: Each uploaded ride is automatically linked to your account
    - Drag & drop multiple files or click to browse
    - Files are automatically stored in the database for backup and future analysis
    - Intelligent duplicate detection prevents accidental re-uploads
    - Instant analysis with detailed calorie, distance, and performance calculations
 
 2. **Explore Your Dashboard**: Comprehensive overview of your cycling activities
+   - **Personal Statistics**: View your own rides and performance metrics
    - **Interactive Charts**: Distance, calories, speed, and elevation trends over time
    - **Monthly Summaries**: Aggregated statistics with visual progress indicators
    - **Performance Trends**: Track improvements with comparative analytics
@@ -216,6 +223,7 @@ myCCC/
 
 The application uses Cloudflare D1 (SQLite-compatible) to store:
 - **Ride data**: Distance, duration, calories, elevation, speed, and performance metrics
+- **User associations**: Each ride is linked to the user who uploaded it for data privacy
 - **GPX files**: Original GPX file content as BLOB data for backup and re-analysis
 - **User accounts**: Google OAuth2 user profiles with roles and permissions
 - **Sessions**: Secure session management with automatic cleanup
@@ -225,11 +233,19 @@ The application uses Cloudflare D1 (SQLite-compatible) to store:
 D1 provides a serverless SQLite database that scales automatically and is globally distributed.
 
 ### Database Tables
-- `rides` - Core ride data and GPX storage
+- `rides` - Core ride data and GPX storage with user associations
 - `users` - User profiles from Google OAuth2
 - `sessions` - Secure session management
 - `calorie_breakdown` - Detailed calorie calculation factors
 - `configuration` - Application settings and preferences
+
+### User Data Privacy
+- Each ride in the `rides` table includes a `user_id` column linking to the `users` table
+- Queries automatically filter rides by the authenticated user
+- Foreign key constraints with `ON DELETE CASCADE` ensure data cleanup
+- Admin users can view all data for management purposes
+
+See [`USER_RIDE_ASSOCIATION.md`](USER_RIDE_ASSOCIATION.md) for detailed implementation documentation.
 
 ## Weather Service
 
@@ -277,18 +293,21 @@ The Cloudflare Workers application provides several API endpoints:
 - `GET /api/auth/user` - Current user information and authentication status
 
 ### Data API (🔐 Authentication Required)
-- `GET /api/dashboard` - Complete dashboard data with statistics, recent rides, chart data, monthly summary, and trends
-- `GET /api/rides?limit={n}` - Recent rides (default limit: 10)
+- `GET /api/dashboard` - Complete dashboard data with user-specific statistics, recent rides, chart data, monthly summary, and trends
+- `GET /api/rides?limit={n}` - Recent rides for the authenticated user (default limit: 10)
 - `GET /api/rides/{rideId}/analysis` - **NEW**: Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
-- `GET /api/chart-data?startDate={date}&endDate={date}` - Chart data for visualization with optional date filtering
-- `GET /filter-data?startDate={date}&endDate={date}` - Filtered ride data by date range
+- `GET /api/chart-data?startDate={date}&endDate={date}` - Chart data for visualization with optional date filtering (user-specific)
+- `GET /filter-data?startDate={date}&endDate={date}` - Filtered ride data by date range (user-specific)
 - `GET /api/geocode?location={name}` - Geocode location names to coordinates (requires WEATHER_API_KEY or falls back to demo data)
 - `GET /api/weather?location={name}` or `GET /api/weather?lat={lat}&lon={lon}` - Get current weather and forecast data with dynamic weather icons (requires WEATHER_API_KEY or falls back to demo data)
+
+**Note**: All ride-related endpoints automatically filter data to show only the authenticated user's rides, ensuring data privacy and security.
 
 ### Upload & Processing (🔐 Authentication Required)
 - `POST /upload` - Upload and analyze GPX files (with duplicate detection)
   - Supports drag & drop file uploads
   - Automatic duplicate detection by filename and content
+  - Associates ride with authenticated user
   - Stores original GPX file content in database
   - Returns detailed analysis with calories, distance, duration, speed
 - `POST /api/analyze` - CLI-compatible GPX analysis endpoint

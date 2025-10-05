@@ -48,6 +48,7 @@ interface ConfigDefault {
 
 interface DatabaseRow {
   id: number;
+  user_id: number | null;
   gpx_filename: string;
   gpx_data: Uint8Array | null;
   rider_weight: number;
@@ -140,6 +141,7 @@ export interface GlobalStatistics {
 
 export interface RideRecord {
   id: number;
+  user_id: number | null;
   gpx_filename: string;
   ride_date: string;
   distance: number;
@@ -279,12 +281,12 @@ export class CyclingDatabase {
   /**
    * Save a ride calculation result to the database
    */
-  async saveRide(result: RideData, gpxFilename: string | null = null, riderWeight: number | null = null, gpxData: string | null = null): Promise<number> {
+  async saveRide(result: RideData, gpxFilename: string | null = null, riderWeight: number | null = null, gpxData: string | null = null, userId: number | null = null): Promise<number> {
     if (!this.isInitialized) await this.initialize();
 
     const insertRideSQL = `
       INSERT INTO rides (
-        gpx_filename, gpx_data, rider_weight, ride_date,
+        user_id, gpx_filename, gpx_data, rider_weight, ride_date,
         distance, duration, elevation_gain, average_speed,
         start_latitude, start_longitude,
         total_calories, base_calories, elevation_calories,
@@ -293,10 +295,11 @@ export class CyclingDatabase {
         wind_speed, wind_direction, humidity, temperature,
         pressure, weather_source,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const rideData = [
+      userId,
       gpxFilename,
       gpxData ? new TextEncoder().encode(gpxData) : null,
       riderWeight,
@@ -902,10 +905,10 @@ export class CyclingDatabase {
   /**
    * Get global statistics for dashboard
    */
-  async getGlobalStatisticsFromDB(): Promise<GlobalStatistics | null> {
+  async getGlobalStatisticsFromDB(userId?: number | null): Promise<GlobalStatistics | null> {
     if (!this.isInitialized) await this.initialize();
     
-    const query = `
+    let query = `
       SELECT 
         COUNT(*) as total_rides,
         COALESCE(SUM(distance), 0) as total_distance,
@@ -919,6 +922,12 @@ export class CyclingDatabase {
       FROM rides
     `;
     
+    if (userId !== undefined && userId !== null) {
+      query += ' WHERE user_id = ?';
+      const result = await this.db.prepare(query).bind(userId).first<GlobalStatistics>();
+      return result;
+    }
+    
     const result = await this.db.prepare(query).first<GlobalStatistics>();
     return result;
   }
@@ -926,36 +935,50 @@ export class CyclingDatabase {
   /**
    * Get recent rides
    */
-  async getRecentRidesFromDB(limit: number = 10): Promise<RideRecord[]> {
+  async getRecentRidesFromDB(limit: number = 10, userId?: number | null): Promise<RideRecord[]> {
     if (!this.isInitialized) await this.initialize();
     
-    const query = `
-      SELECT id, gpx_filename, ride_date, distance, total_calories, 
+    let query = `
+      SELECT id, user_id, gpx_filename, ride_date, distance, total_calories, 
              duration, average_speed, elevation_gain
-      FROM rides 
-      ORDER BY ride_date DESC 
-      LIMIT ?
+      FROM rides
     `;
     
-    const result = await this.db.prepare(query).bind(limit).all<RideRecord>();
+    const params: any[] = [];
+    
+    if (userId !== undefined && userId !== null) {
+      query += ' WHERE user_id = ?';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY ride_date DESC LIMIT ?';
+    params.push(limit);
+    
+    const result = await this.db.prepare(query).bind(...params).all<RideRecord>();
     return result.results || [];
   }
 
   /**
    * Get rides in date range
    */
-  async getRidesInDateRangeFromDB(startDate: Date, endDate: Date, limit?: number): Promise<RideRecord[]> {
+  async getRidesInDateRangeFromDB(startDate: Date, endDate: Date, limit?: number, userId?: number | null): Promise<RideRecord[]> {
     if (!this.isInitialized) await this.initialize();
     
     let query = `
-      SELECT id, gpx_filename, ride_date, distance, total_calories, 
+      SELECT id, user_id, gpx_filename, ride_date, distance, total_calories, 
              duration, average_speed, elevation_gain
       FROM rides 
       WHERE ride_date >= ? AND ride_date <= ?
-      ORDER BY ride_date DESC
     `;
     
     const params: any[] = [startDate.toISOString(), endDate.toISOString()];
+    
+    if (userId !== undefined && userId !== null) {
+      query += ' AND user_id = ?';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY ride_date DESC';
     
     if (limit) {
       query += ' LIMIT ?';
@@ -1029,12 +1052,12 @@ export class CyclingDatabase {
   /**
    * Save GPX analysis
    */
-  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null): Promise<number> {
+  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null, userId: number | null = null): Promise<number> {
     if (!this.isInitialized) await this.initialize();
     
     const insertRideSQL = `
       INSERT INTO rides (
-        gpx_filename, gpx_data, rider_weight, ride_date,
+        user_id, gpx_filename, gpx_data, rider_weight, ride_date,
         distance, duration, elevation_gain, average_speed,
         start_latitude, start_longitude,
         total_calories, base_calories, elevation_calories,
@@ -1043,10 +1066,11 @@ export class CyclingDatabase {
         wind_speed, wind_direction, humidity, temperature,
         pressure, weather_source,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const rideData = [
+      userId,
       gpxFilename,
       gpxData ? new TextEncoder().encode(gpxData) : null,
       riderWeight,

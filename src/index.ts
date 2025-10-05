@@ -57,11 +57,14 @@ app.get('/test/*', serveStatic({ root: './test' }))
 // API Routes
 app.get('/api/dashboard', requireAuth, async (c) => {
   try {
+    const user = c.get('user') as User
+    const userId = user?.id || null
+    
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
     
-    const globalStats = await dbService.getGlobalStatistics()
-    const recentRides = await dbService.getRecentRides(5)
+    const globalStats = await dbService.getGlobalStatistics(userId)
+    const recentRides = await dbService.getRecentRides(5, userId)
     const chartData = await dbService.getChartData()
     const monthlyData = await dbService.getMonthlySummary()
     const trends = await dbService.getPerformanceTrends()
@@ -82,11 +85,14 @@ app.get('/api/dashboard', requireAuth, async (c) => {
 
 app.get('/api/rides', requireAuth, async (c) => {
   try {
+    const user = c.get('user') as User
+    const userId = user?.id || null
+    
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
     
     const limit = parseInt(c.req.query('limit') || '10')
-    const rides = await dbService.getRecentRides(limit)
+    const rides = await dbService.getRecentRides(limit, userId)
     return c.json(rides)
   } catch (error) {
     return c.json({ error: (error as Error).message }, 500)
@@ -171,10 +177,14 @@ app.post('/upload', requireAuth, async (c) => {
       `, 409)
     }
     
+    // Get user from context
+    const user = c.get('user') as User
+    const userId = user?.id || null
+    
     // Save to database
     log.info('💾 Saving to database...')
-    const rideId = await dbService.saveGPXAnalysis(data, fileName, riderWeight, fileContent)
-    log.info(`✅ Saved ride analysis to database with ID: ${rideId}`)
+    const rideId = await dbService.saveGPXAnalysis(data, fileName, riderWeight, fileContent, userId)
+    log.info(`✅ Saved ride analysis to database with ID: ${rideId} for user ${userId}`)
     
     const fileSize = (file.size / 1024).toFixed(1)
     return c.html(generateUploadResponse(data, fileName, fileSize))
@@ -243,10 +253,13 @@ app.get('/filter-data', requireAuth, async (c) => {
   }
   
   try {
+    const user = c.get('user') as User
+    const userId = user?.id || null
+    
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
     
-    const filteredData = await dbService.getRidesInDateRange(startDate, endDate)
+    const filteredData = await dbService.getRidesInDateRange(startDate, endDate, undefined, userId)
     return c.html(generateFilteredDataFromDB(filteredData, startDate, endDate))
   } catch (error) {
     const log = createLogger('Filter')
@@ -637,8 +650,9 @@ app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
 })
 
 // Configuration API endpoints
-app.get('/api/configuration', requireAuth, async (c) => {
-  try {
+app.get('/api/configuration', requireAuth, requireAdmin, async (c) => {
+  
+  try {    
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
     

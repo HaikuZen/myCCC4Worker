@@ -73,10 +73,10 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Get global statistics for the dashboard
    */
-  async  getGlobalStatistics() {
+  async  getGlobalStatistics(userId?: number | null) {
      
     try {
-      const result = await super.getGlobalStatisticsFromDB()
+      const result = await super.getGlobalStatisticsFromDB(userId)
       
       if (!result || result.total_rides === 0) {
         return {
@@ -128,10 +128,10 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Get recent rides for display
    */
-  async getRecentRides(limit: number = 10) {
+  async getRecentRides(limit: number = 10, userId?: number | null) {
      
     try {
-      const rides = await super.getRecentRidesFromDB(limit)
+      const rides = await super.getRecentRidesFromDB(limit, userId)
       
       return rides.map((ride: RideRecord) => ({
         id: ride.id,
@@ -152,13 +152,14 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Get rides within date range
    */
-  async getRidesInDateRange(startDate: string, endDate: string, limit?: number) {
+  async getRidesInDateRange(startDate: string, endDate: string, limit?: number, userId?: number | null) {
     
     try {
       const rides = await super.getRidesInDateRangeFromDB(
         new Date(startDate),
         new Date(endDate),
-        limit
+        limit,
+        userId
       )
       
       const totalDistance = rides.reduce((sum: number, ride: RideRecord) => sum + (ride.distance || 0), 0)
@@ -353,11 +354,11 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Save analyzed GPX data to database
    */
-  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null): Promise<number> {
+  async saveGPXAnalysis(analysisData: any, gpxFilename: string, riderWeight: number = 70, gpxData: string | null = null, userId: number | null = null): Promise<number> {
     
     
     try {
-      const rideId = await super.saveGPXAnalysis(analysisData, gpxFilename, riderWeight, gpxData)
+      const rideId = await super.saveGPXAnalysis(analysisData, gpxFilename, riderWeight, gpxData, userId)
       this.logger.info(`💾 Saved ride analysis to database with ID: ${rideId}`)
       return rideId
     } catch (error) {

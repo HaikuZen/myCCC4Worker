@@ -4,6 +4,7 @@
 -- Create rides table
 CREATE TABLE IF NOT EXISTS rides (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     gpx_filename TEXT,
     gpx_data BLOB,
     rider_weight REAL NOT NULL,
@@ -38,7 +39,10 @@ CREATE TABLE IF NOT EXISTS rides (
     
     -- Metadata
     elevation_enhanced BOOLEAN DEFAULT 0,
-    has_elevation_data BOOLEAN DEFAULT 0
+    has_elevation_data BOOLEAN DEFAULT 0,
+    
+    -- Foreign key constraint
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 -- Create calorie breakdown table
@@ -88,6 +92,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 -- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_rides_user ON rides (user_id);
 CREATE INDEX IF NOT EXISTS idx_rides_date ON rides (ride_date);
 CREATE INDEX IF NOT EXISTS idx_rides_distance ON rides (distance);
 CREATE INDEX IF NOT EXISTS idx_rides_calories ON rides (total_calories);
