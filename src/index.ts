@@ -748,9 +748,10 @@ async function requireAdmin(c: any, next: Function) {
 
 // Create auth service helper
 function createAuthService(env: Bindings, requestUrl?: string): AuthService {
+  const log = createLogger('Auth:Service')
   // Determine redirect URI from environment variable or request URL
   let redirectUri = env.REDIRECT_URI || ''
-  
+  log.info(`Using redirect URI: ${redirectUri}`)
   // If no explicit redirect URI is set, construct from request URL
   if (!redirectUri && requestUrl) {
     const url = new URL(requestUrl)
@@ -823,6 +824,8 @@ app.get('/auth/callback', async (c) => {
     const code = c.req.query('code')
     const error = c.req.query('error')
     
+    log.info(`OAuth callback received. Code: ${code}, Error: ${error}`)
+
     if (error) {
       log.error('OAuth error:', error)
       return c.redirect('/login?error=oauth_failed')

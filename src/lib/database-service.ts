@@ -551,14 +551,15 @@ export class DatabaseService extends CyclingDatabase{
       const result = await this.db
         .prepare(`
           INSERT INTO users (google_id, email, email_hash, name, picture, last_login)
-          VALUES (?, ?, ?, ?, '', ?) 
+          VALUES (?, ?, ?, ?, ?, ?) 
         `) // Empty string for picture 
         .bind(
           googleUser.id,
           maskedEmail,
           emailHash,
           googleUser.name,
-          googleUser.picture || null,
+          //googleUser.picture || null,
+          null,
           now
         )
         .run()
