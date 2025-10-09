@@ -27,8 +27,12 @@
           "binding": "DB",
           "database_name": "cycling-data",
           "database_id": "f31d4fe8-7894-4e88-a4c5-4ab3cfc3e4a2"
-        }
-      ]
+        },
+      ],
+      "vars": {
+        "APP_URL": "https://cycling.haiku-zen.com/",
+        "ENVIRONMENT": "production"
+      }
     },
     "development": {
       "name": "myccc-cycling-calculator-dev"
@@ -45,14 +49,7 @@
       "database_id": "f31d4fe8-7894-4e88-a4c5-4ab3cfc3e4a2"
     }
   ],
-  "vars": {
-    "ENVIRONMENT": "production"
-    // Add your OpenWeatherMap API key here for weather/geocoding functionality
-    // You can set this via: wrangler secret put WEATHER_API_KEY
-    // Or uncomment and set directly (not recommended for production):
-    // "WEATHER_API_KEY": "your-openweather-api-key-here"
-  },
-  
+ 
   // ==============================================================================
   // 🔐 AUTHENTICATION CONFIGURATION
   // ==============================================================================

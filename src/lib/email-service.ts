@@ -302,7 +302,7 @@ export class EmailService {
   async sendInvitationEmail(data: InvitationEmailData): Promise<boolean> {
     log.info(`Sending invitation email to ${JSON.stringify(data)}`)
 
-    const invitationUrl = `${this.config.app_url}/accept-invitation?token=${data.invitation_token}`
+    const invitationUrl = `${this.config.app_url}accept-invitation?token=${data.invitation_token}`
     const subject = `You've been invited to join Cycling Calories Calculator`
     const htmlContent = this.generateInvitationEmailHTML(data, invitationUrl)
     const textContent = this.generateInvitationEmailText(data, invitationUrl)

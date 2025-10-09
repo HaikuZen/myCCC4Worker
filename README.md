@@ -4,6 +4,8 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 
 ## ✨ What's New in v2.0
 
+- 🔐 **Invitation-Only Authentication**: Enhanced security with admin-controlled access - only invited users can join
+- ✨ **Automatic Account Creation**: User accounts created automatically on first login with valid invitation
 - 🔐 **Google OAuth2 Authentication**: Secure user authentication with Google accounts and session management
 - 📧 **User Invitation System**: Admin-only email invitations with multiple email providers (Gmail, MailChannels, Resend)
 - 👥 **User-Specific Rides**: Each ride is now associated with the user who uploaded it, ensuring data privacy
@@ -47,6 +49,9 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🧹 **Database Optimization**: Built-in tools for database cleanup and optimization
 
 ### Authentication & Security
+- 🔐 **Invitation-Only Access**: Only invited users can create accounts - enhanced security and access control
+- 📧 **Admin-Managed Invitations**: Admins send email invitations with unique tokens and role assignment
+- ✨ **Auto-Account Creation**: User accounts created automatically on first login with valid invitation
 - 🔐 **Google OAuth2**: Secure user authentication with Google accounts and session management
 - ⚡ **Auto-Configuration**: Automatic redirect URI detection - no hardcoded URLs
 - 👤 **User Profiles**: Rich user profiles with avatars, names, and role-based permissions
@@ -55,7 +60,6 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🔒 **Role-Based Access**: Admin privileges for sensitive operations like database management
 - 🚪 **Protected Routes**: Authentication required for uploads and data management
 - 🔄 **Session Cleanup**: Automatic expired session removal
-- 📧 **User Invitations**: Admin-only email invitation system with role assignment and expiration
 
 ### Privacy & Compliance
 - 🍪 **GDPR Cookie Consent**: Full GDPR-compliant cookie consent banner with granular controls
@@ -72,6 +76,27 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 📝 **Comprehensive Logging**: Structured logging throughout the application
 - 🎨 **Modern UI/UX**: Beautiful interface with DaisyUI components and smooth animations
 - ⚡ **Performance Optimized**: Lazy loading, efficient data fetching, and responsive design
+
+## Invitation-Only Access
+
+> ⚠️ **Important**: This application uses invitation-only authentication. New users must be invited by an administrator.
+
+### For Administrators:
+1. Access the configuration page after logging in
+2. Navigate to the "User Invitations" section
+3. Enter the email address and select role (user or admin)
+4. Click "Send Invitation"
+5. User receives email with invitation link
+
+### For New Users:
+1. Receive invitation email from administrator
+2. Click the invitation link in the email
+3. Click "Sign In with Google" on the welcome page
+4. Use the invited email address to authenticate
+5. Account is created automatically
+6. Start using the application immediately
+
+📚 **Detailed Documentation**: See [`readmes/INVITATION_LOGIN_FLOW.md`](readmes/INVITATION_LOGIN_FLOW.md) for complete system documentation.
 
 ## Quick Start
 
@@ -217,12 +242,11 @@ myCCC/
 ├── PRIVACY_IMPLEMENTATION.md  # Email privacy documentation
 ├── USER_RIDE_ASSOCIATION.md   # User-ride relationship documentation
 ├── GDPR_COOKIE_COMPLIANCE.md  # Cookie consent documentation
-├── INVITATION_SYSTEM.md       # User invitation system documentation
-├── QUICK_START_INVITATIONS.md # Quick start guide for testing invitations
 ├── readmes/                   # Documentation files
+│   ├── INVITATION_LOGIN_FLOW.md # Invitation-only authentication system (NEW!)
 │   ├── GMAIL_OAUTH2_QUICKSTART.md # Gmail OAuth 2.0 setup (2 minutes)
 │   ├── EMAIL_README.md        # Email service overview
-│   ├── INVITATION_SYSTEM.md   # User invitation system
+│   ├── INVITATION_ACCEPTANCE.md # Invitation technical details
 │   └── ... (other documentation)
 ├── .dev.vars.example          # Environment variables template
 └── package.json               # Dependencies and scripts
@@ -231,12 +255,23 @@ myCCC/
 ## Usage
 
 ### Authentication
-**First-time setup**: The application requires Google OAuth2 authentication for security and user management.
+**Invitation-Only System**: The application uses an invitation-only authentication system for enhanced security.
 
+#### For New Users:
+1. **Request Invitation**: Contact an administrator to request access
+2. **Receive Email**: You'll receive an invitation email with a unique link
+3. **Click Invitation Link**: The link shows a welcome page with instructions
+4. **Sign In with Google**: Click "Sign In with Google" using the invited email address
+5. **Automatic Account Creation**: Your account is created automatically on first login
+6. **Dashboard Access**: You're immediately logged in and redirected to your dashboard
+
+#### For Existing Users:
 1. **Sign In**: Click the "Sign In" button in the top-right corner
 2. **Google OAuth**: Authenticate using your Google account
 3. **User Profile**: Your name, email, and avatar will appear in the navbar
-4. **Admin Access**: Administrators can access database management and advanced settings
+4. **Admin Access**: Administrators can access database management and send invitations
+
+**Note**: Users without a valid invitation cannot create accounts. Contact an administrator for access.
 
 ### Getting Started
 1. **Upload GPX Files**: Use the modern web interface to upload your cycling GPX files
@@ -262,16 +297,18 @@ myCCC/
    - **Route Segments**: Detailed segment analysis with performance data
    - **Environmental Data**: Weather conditions and their impact on performance
 
-4. **User Invitations** (🔒 Admin Only): Invite new users to the platform
+4. **User Invitations** (🔒 Admin Only): Control access to the platform
+   - **Invitation-Only Access**: Only invited users can create accounts
+   - **Automatic Account Creation**: Accounts created during first login with valid invitation
    - **Multiple Email Providers**: Choose between Gmail, MailChannels, or Resend
    - **Gmail OAuth 2.0**: Uses existing Google OAuth credentials - no App Password needed!
    - **Email Invitations**: Send professional invitation emails with unique tokens
-   - **Role Assignment**: Invite users as regular users or administrators
+   - **Role Assignment**: Invite users as regular users or administrators  
    - **Personal Messages**: Include custom messages with invitations
    - **Automatic Expiration**: Invitations expire after 7 days for security
    - **Duplicate Prevention**: System checks for existing users and pending invitations
-   - **Beautiful Emails**: Responsive HTML email templates
-   - Access via user avatar menu → "Invite User"
+   - **Beautiful Emails**: Responsive HTML email templates with clear instructions
+   - Access via configuration page or user avatar menu → "Invite User"
 
 5. **Data Management**: Powerful tools for managing your cycling data
    - **Database Interface**: Built-in web interface for viewing and editing data
@@ -355,7 +392,8 @@ The Cloudflare Workers application provides several API endpoints:
 
 ### Authentication API
 - `GET /login` - Google OAuth2 login page
-- `GET /auth/callback` - OAuth2 callback handler
+- `GET /auth/callback` - OAuth2 callback handler with automatic account creation for invited users
+- `GET /accept-invitation?token={token}` - Validate invitation and show welcome page with sign-in instructions
 - `POST /auth/logout` - User logout and session cleanup
 - `GET /api/auth/user` - Current user information and authentication status
 
@@ -403,10 +441,15 @@ The Cloudflare Workers application provides several API endpoints:
   - Sends beautiful HTML email via Gmail/MailChannels/Resend
   - Generates secure 256-bit token with 7-day expiration
   - Validates email format and checks for duplicates
+  - **Note**: Account creation happens automatically when user signs in with Google
 - `GET /api/admin/invitations` - List all invitations
   - Returns invitation details with inviter information
   - Shows status: pending, accepted, expired, revoked
 - `DELETE /api/admin/invitations/{id}` - Revoke/delete invitation
+- `GET /accept-invitation?token={token}` - Invitation acceptance page (public)
+  - Validates invitation token and expiration
+  - Shows welcome page with sign-in instructions
+  - Redirects to login where account is created automatically
 
 ### Static Routes
 - `GET /` - Main application dashboard
@@ -562,7 +605,23 @@ Your app will be available at: `https://your-worker-name.your-subdomain.workers.
    - Click "Sign In"
    - Complete Google OAuth flow
 
-3. **Make first user admin** (if needed):
+3. **Create the first admin user**:
+   
+   Since the app is invitation-only, you need to manually create the first admin:
+   
+   ```bash
+   # Temporarily bypass invitation check by adding a pending invitation
+   wrangler d1 execute cycling-data --remote --command="INSERT INTO invitations (email, token, role, status, invited_by, expires_at) VALUES ('your-email@gmail.com', 'temp-token-123', 'admin', 'pending', 1, datetime('now', '+7 days'));"
+   
+   # Sign in with that email - account will be created automatically
+   # Then clean up the temporary invitation
+   wrangler d1 execute cycling-data --remote --command="DELETE FROM invitations WHERE token = 'temp-token-123';"
+   
+   # Verify admin status
+   wrangler d1 execute cycling-data --remote --command="SELECT id, email, is_admin FROM users;"
+   ```
+   
+   **Alternative method** (if you already have a user account):
    ```bash
    wrangler d1 execute cycling-data --remote --command="SELECT id, email FROM users;"
    wrangler d1 execute cycling-data --remote --command="UPDATE users SET is_admin = 1 WHERE id = YOUR_USER_ID;"
