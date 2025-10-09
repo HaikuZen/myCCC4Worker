@@ -83,4 +83,49 @@
   // Set WEATHER_API_KEY as a secret for live geocoding functionality:
   // wrangler secret put WEATHER_API_KEY
   // Without an API key, the app will use demo geocoding data for common cities
+  
+  // ==============================================================================
+  // 📧 EMAIL CONFIGURATION (for User Invitations)
+  // ==============================================================================
+  // This app supports multiple email providers:
+  // - MailChannels (free for Cloudflare Workers, default)
+  // - Resend (modern email API for developers)
+  //
+  // Configure these environment variables:
+  //
+  // 1. FROM_EMAIL: The email address invitations are sent from
+  //    Example: "noreply@yourdomain.com"
+  //
+  // 2. FROM_NAME: The display name for the sender
+  //    Example: "Cycling Calories Calculator"
+  //
+  // 3. APP_URL: Your application's public URL
+  //    Example: "https://myccc-cycling-calculator.workers.dev"
+  //    Note: This is used in invitation links. If not set, auto-detected from request.
+  //
+  // 4. EMAIL_PROVIDER: Choose email provider (optional, defaults to 'mailchannels')
+  //    Options: "mailchannels" or "resend"
+  //
+  // 5. RESEND_API_KEY: API key for Resend (only required if using Resend)
+  //    Get your key from: https://resend.com/api-keys
+  //
+  // Set these in wrangler.jsonc vars or as secrets:
+  // "FROM_EMAIL": "noreply@yourdomain.com",
+  // "FROM_NAME": "Cycling Calories Calculator",
+  // "APP_URL": "https://your-worker-url.workers.dev",
+  // "EMAIL_PROVIDER": "mailchannels" // or "resend"
+  //
+  // For Resend:
+  // wrangler secret put RESEND_API_KEY
+  //
+  // ⚠️ MAILCHANNELS: For production with custom domains, you need to:
+  // 1. Verify your domain with MailChannels
+  // 2. Add SPF and DKIM records to your DNS
+  // Learn more: https://support.mailchannels.com/hc/en-us/articles/4565898358413
+  //
+  // ⚠️ RESEND: For production:
+  // 1. Verify your domain at https://resend.com/domains
+  // 2. Add DNS records provided by Resend
+  // 3. Get your API key from https://resend.com/api-keys
+  // Learn more: https://resend.com/docs
 }

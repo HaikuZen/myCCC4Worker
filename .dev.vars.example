@@ -1,0 +1,67 @@
+# Development Environment Variables for Cloudflare Workers
+# Copy this file to .dev.vars and fill in your actual values
+# DO NOT commit .dev.vars to version control!
+
+# =============================================================================
+# EMAIL CONFIGURATION
+# =============================================================================
+
+# Choose email provider: 'gmail', 'mailchannels', or 'resend'
+EMAIL_PROVIDER=gmail
+
+# Email sender information (appears in "From" field)
+FROM_EMAIL=your-email@gmail.com
+FROM_NAME=Cycling Calories Calculator
+
+# Application URL (used in email links)
+APP_URL=http://localhost:8787
+
+# =============================================================================
+# GMAIL OAuth 2.0 CONFIGURATION (when EMAIL_PROVIDER=gmail)
+# =============================================================================
+
+# Gmail uses the existing Google OAuth 2.0 credentials!
+# GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are already configured for authentication
+
+# Your Gmail address to send emails from
+GMAIL_USER=your-email@gmail.com
+
+# Optional: Google Refresh Token for Gmail API
+# Only needed if you want to use a service account or different OAuth flow
+# For most cases, this is not required - the app uses your existing OAuth credentials
+# GOOGLE_REFRESH_TOKEN=your-refresh-token
+
+# Note: Gmail will use your existing GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+# No additional App Password or SMTP configuration needed!
+
+# =============================================================================
+# RESEND CONFIGURATION (when EMAIL_PROVIDER=resend)
+# =============================================================================
+
+# Resend API Key (get from https://resend.com)
+# RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx
+
+# =============================================================================
+# MAILCHANNELS CONFIGURATION (when EMAIL_PROVIDER=mailchannels)
+# =============================================================================
+
+# MailChannels is free for Cloudflare Workers and requires no API key
+# Just set EMAIL_PROVIDER=mailchannels
+
+# =============================================================================
+# NOTES
+# =============================================================================
+
+# For Gmail:
+# 1. Uses your existing GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+# 2. Set GMAIL_USER to the email address you want to send from
+# 3. No App Password needed - OAuth 2.0 handles authentication!
+# 4. Optionally set GOOGLE_REFRESH_TOKEN for service accounts
+# 5. Much simpler than SMTP with App Passwords
+
+# For local development with wrangler:
+#   wrangler dev --local
+#
+# For production, set these as secrets:
+#   wrangler secret put GMAIL_PASSWORD
+#   wrangler secret put RESEND_API_KEY (if using Resend)

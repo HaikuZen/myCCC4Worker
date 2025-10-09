@@ -12,7 +12,7 @@ export class DatabaseService extends CyclingDatabase{
 
   constructor(database: D1Database ) {
     super(database) 
-    this.logger.info('DatabaseService initialized with provided database instance.') 
+    //this.logger.info('DatabaseService initialized with provided database instance.') 
   }
 
   /**
@@ -606,6 +606,223 @@ export class DatabaseService extends CyclingDatabase{
       return newUser
     } catch (error) {
       this.logger.error('Error finding or creating user:', error)
+      throw error
+    }
+  }
+
+  // ============= INVITATION MANAGEMENT =============
+
+  /**
+   * Check if a user with the given email already exists
+   */
+  async findUserByEmail(email: string): Promise<User | null> {
+    try {
+      const emailHash = await this.hashEmail(email)
+      const user = await this.db
+        .prepare('SELECT * FROM users WHERE email_hash = ?')
+        .bind(emailHash)
+        .first<User>()
+      
+      return user || null
+    } catch (error) {
+      this.logger.error('Error finding user by email:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update user role (admin status)
+   */
+  async updateUserRole(userId: number, isAdmin: boolean): Promise<boolean> {
+    try {
+      const now = new Date().toISOString()
+      const result = await this.db
+        .prepare('UPDATE users SET is_admin = ?, updated_at = ? WHERE id = ?')
+        .bind(isAdmin ? 1 : 0, now, userId)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Updated user ${userId} admin status to ${isAdmin}`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error updating user role:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Check if a pending invitation already exists for the given email
+   */
+  async findPendingInvitation(email: string): Promise<any | null> {
+    try {
+      const invitation = await this.db
+        .prepare('SELECT id, status, expires_at FROM invitations WHERE email = ? AND status = "pending"')
+        .bind(email.trim())
+        .first()
+      
+      return invitation || null
+    } catch (error) {
+      this.logger.error('Error finding pending invitation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new invitation
+   */
+  async createInvitation(
+    email: string,
+    token: string,
+    role: string,
+    message: string | null,
+    invitedBy: number,
+    expiresAt: string
+  ): Promise<boolean> {
+    try {
+      const result = await this.db
+        .prepare(
+          `INSERT INTO invitations (email, token, role, status, message, invited_by, expires_at)
+           VALUES (?, ?, ?, 'pending', ?, ?, ?)`
+        )
+        .bind(email.trim(), token, role, message, invitedBy, expiresAt)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Invitation created for ${email} by user ${invitedBy}`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error creating invitation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get all invitations with inviter information
+   */
+  async getAllInvitations(): Promise<any[]> {
+    try {
+      const invitations = await this.db
+        .prepare(
+          `SELECT 
+            i.id, i.email, i.role, i.status, i.created_at, i.expires_at, i.accepted_at,
+            u.name as invited_by_name, u.email as invited_by_email
+           FROM invitations i
+           LEFT JOIN users u ON i.invited_by = u.id
+           ORDER BY i.created_at DESC
+           LIMIT 100`
+        )
+        .all()
+      
+      return invitations.results || []
+    } catch (error) {
+      this.logger.error('Error getting invitations:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get invitation by token
+   */
+  async getInvitationByToken(token: string): Promise<any | null> {
+    try {
+      const invitation = await this.db
+        .prepare(
+          `SELECT * FROM invitations WHERE token = ? AND status = 'pending'`
+        )
+        .bind(token)
+        .first()
+      
+      return invitation || null
+    } catch (error) {
+      this.logger.error('Error getting invitation by token:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Mark invitation as accepted
+   */
+  async acceptInvitation(invitationId: number): Promise<boolean> {
+    try {
+      const now = new Date().toISOString()
+      const result = await this.db
+        .prepare(
+          `UPDATE invitations SET status = 'accepted', accepted_at = ? WHERE id = ?`
+        )
+        .bind(now, invitationId)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Invitation ${invitationId} marked as accepted`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error accepting invitation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete invitation by ID
+   */
+  async deleteInvitation(invitationId: number): Promise<boolean> {
+    try {
+      const result = await this.db
+        .prepare('DELETE FROM invitations WHERE id = ?')
+        .bind(invitationId)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Invitation ${invitationId} deleted`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error deleting invitation:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Check if an invitation is expired
+   */
+  isInvitationExpired(expiresAt: string): boolean {
+    const expirationDate = new Date(expiresAt)
+    const now = new Date()
+    return expirationDate <= now
+  }
+
+  /**
+   * Clean up expired invitations
+   */
+  async cleanupExpiredInvitations(): Promise<number> {
+    try {
+      const now = new Date().toISOString()
+      const result = await this.db
+        .prepare(
+          `UPDATE invitations SET status = 'expired' 
+           WHERE status = 'pending' AND expires_at < ?`
+        )
+        .bind(now)
+        .run()
+      
+      const rowsAffected = result.meta?.changes || 0
+      if (rowsAffected > 0) {
+        this.logger.info(`Marked ${rowsAffected} expired invitations`)
+      }
+      
+      return rowsAffected
+    } catch (error) {
+      this.logger.error('Error cleaning up expired invitations:', error)
       throw error
     }
   }

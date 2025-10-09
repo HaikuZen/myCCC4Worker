@@ -31,6 +31,8 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+.dev.vars
+.dev.vars.local
 
 # macOS
 .DS_Store

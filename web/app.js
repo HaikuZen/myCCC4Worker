@@ -65,8 +65,10 @@ function showAuthenticatedState(user) {
         // User dropdown menu items
         const adminMenuConfig = document.getElementById('adminMenuConfig');
         const adminMenuDatabase = document.getElementById('adminMenuDatabase');
+        const adminMenuInvite = document.getElementById('adminMenuInvite');
         if (adminMenuConfig) adminMenuConfig.classList.remove('hidden');
         if (adminMenuDatabase) adminMenuDatabase.classList.remove('hidden');
+        if (adminMenuInvite) adminMenuInvite.classList.remove('hidden');
         
         // Desktop navigation links
         const desktopConfigLink = document.getElementById('desktopConfigLink');
@@ -216,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeDatePickers();
     initializeWeatherForecast();
     initializeDashboard();
-    initializeConfiguration();
+    initializeInvitationForm();
     
     // Load real data from database or fallback to sample data
     loadDatabaseData();
@@ -2901,5 +2903,154 @@ function formatTime(seconds) {
         return `${minutes}m ${secs}s`;
     } else {
         return `${secs}s`;
+    }
+}
+
+// ============= INVITATION FUNCTIONS =============
+
+// Open invitation modal
+function openInvitationModal() {
+    // Check if user is admin
+    if (!requireAdmin('send invitations')) {
+        return;
+    }
+    
+    // Reset form
+    const form = document.getElementById('invitationForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Hide status messages
+    hideInvitationMessages();
+    
+    // Open modal
+    const modalToggle = document.getElementById('invitationModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = true;
+    }
+}
+
+// Close invitation modal
+function closeInvitationModal() {
+    const modalToggle = document.getElementById('invitationModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = false;
+    }
+}
+
+// Hide invitation status messages
+function hideInvitationMessages() {
+    const successMsg = document.getElementById('invitationSuccess');
+    const errorMsg = document.getElementById('invitationError');
+    
+    if (successMsg) successMsg.classList.add('hidden');
+    if (errorMsg) errorMsg.classList.add('hidden');
+}
+
+// Show invitation success message
+function showInvitationSuccess(message = 'Invitation sent successfully!') {
+    const successMsg = document.getElementById('invitationSuccess');
+    const errorMsg = document.getElementById('invitationError');
+    
+    if (errorMsg) errorMsg.classList.add('hidden');
+    if (successMsg) {
+        successMsg.classList.remove('hidden');
+        const span = successMsg.querySelector('span');
+        if (span) span.textContent = message;
+    }
+}
+
+// Show invitation error message
+function showInvitationError(message = 'Failed to send invitation') {
+    const successMsg = document.getElementById('invitationSuccess');
+    const errorMsg = document.getElementById('invitationError');
+    const errorMessageSpan = document.getElementById('invitationErrorMessage');
+    
+    if (successMsg) successMsg.classList.add('hidden');
+    if (errorMsg) {
+        errorMsg.classList.remove('hidden');
+    }
+    if (errorMessageSpan) {
+        errorMessageSpan.textContent = message;
+    }
+}
+
+// Handle invitation form submission
+async function handleInvitationSubmit(event) {
+    event.preventDefault();
+    
+    // Check if user is admin
+    if (!requireAdmin('send invitations')) {
+        return;
+    }
+    
+    // Get form data
+    const email = document.getElementById('inviteEmail')?.value;
+    const role = document.getElementById('inviteRole')?.value;
+    const message = document.getElementById('inviteMessage')?.value;
+    
+    // Validate email
+    if (!email || !email.trim()) {
+        showInvitationError('Please enter an email address');
+        return;
+    }
+    
+    // Hide previous messages
+    hideInvitationMessages();
+    
+    // Disable submit button
+    const submitBtn = document.getElementById('sendInvitationBtn');
+    const originalBtnText = submitBtn?.innerHTML;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm mr-2"></span>Sending...';
+    }
+    
+    try {
+        const response = await fetch('/api/admin/invitations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: email.trim(),
+                role: role || 'user',
+                message: message?.trim() || ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showInvitationSuccess(result.message || 'Invitation sent successfully!');
+            
+            // Reset form after 2 seconds and close modal
+            setTimeout(() => {
+                const form = document.getElementById('invitationForm');
+                if (form) form.reset();
+                hideInvitationMessages();
+                closeInvitationModal();
+            }, 10000);
+        } else {
+            showInvitationError(result.error || 'Failed to send invitation');
+        }
+    } catch (error) {
+        console.error('Error sending invitation:', error);
+        showInvitationError('Network error. Please try again.');
+    } finally {
+        // Re-enable submit button
+        if (submitBtn && originalBtnText) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    }
+}
+
+// Initialize invitation form
+function initializeInvitationForm() {
+    const form = document.getElementById('invitationForm');
+    if (form) {
+        form.addEventListener('submit', handleInvitationSubmit);
     }
 }

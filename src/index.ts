@@ -7,6 +7,7 @@ import { DatabaseService } from './lib/database-service'
 import { createLogger } from './lib/logger'
 import { WeatherService } from './lib/weather'
 import { AuthService, User } from './lib/auth'
+import { EmailService } from './lib/email-service'
 
 type Bindings = {
   DB: D1Database
@@ -16,6 +17,14 @@ type Bindings = {
   GOOGLE_CLIENT_SECRET?: string
   JWT_SECRET?: string
   REDIRECT_URI?: string
+  FROM_EMAIL?: string
+  FROM_NAME?: string
+  APP_URL?: string
+  EMAIL_PROVIDER?: 'mailchannels' | 'resend' | 'gmail'
+  RESEND_API_KEY?: string
+  // Gmail OAuth 2.0 configuration (reuses existing Google OAuth credentials)
+  GMAIL_USER?: string              // Gmail address to send from (defaults to FROM_EMAIL)
+  GOOGLE_REFRESH_TOKEN?: string    // Optional: OAuth refresh token for Gmail API
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -47,6 +56,7 @@ app.get('/app.js', serveStatic({ path: './app.js' }))
 app.get('/auth.js', serveStatic({ path: './auth.js' }))
 app.get('/database-manager.js', serveStatic({ path: './database-manager.js' }))
 app.get('/configuration-manager.js', serveStatic({ path: './configuration-manager.js' }))
+app.get('/cookie-consent.js', serveStatic({ path: './cookie-consent.js' }))
 app.get('/index-new.js', serveStatic({ path: './index-new.js' }))
 
 // Test files - serve from ./test/ subdirectory
@@ -294,12 +304,8 @@ app.get('/api/database/overview', requireAuth, requireAdmin, async (c) => {
 app.get('/api/database/table/:tableName', requireAuth, requireAdmin, async (c) => {
   try {
     const tableName = c.req.param('tableName')
-    const validTables = ['rides', 'users', 'sessions', 'calorie_breakdown', 'configuration']
     
-    if (!validTables.includes(tableName)) {
-      return c.json({ error: 'Invalid table name' }, 400)
-    }
-    
+    // Table validation is handled in DatabaseService.getTableData()
     const dbService = new DatabaseService(c.env.DB)
     await dbService.initialize()
     
@@ -522,7 +528,7 @@ app.get('/api/geocode', async (c) => {
   
   try {
     const log = createLogger('API:Geocode')
-    log.info(`🌍 Geocoding location: ${locationName}`)
+    //log.info(`🌍 Geocoding location: ${locationName}`)
     
     // Initialize weather service with API key
     const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
@@ -554,7 +560,7 @@ app.get('/api/weather', async (c) => {
   
   try {
     const log = createLogger('API:Weather')
-    log.info(`🌤️ Getting weather data for: ${location || `${lat},${lon}`}`)
+    //log.info(`🌤️ Getting weather data for: ${location || `${lat},${lon}`}`)
     
     // Initialize weather service with API key
     const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
@@ -862,8 +868,98 @@ app.get('/auth/callback', async (c) => {
     // Get user info from Google
     const googleUser = await authService.getGoogleUserInfo(accessToken)
     
-    // Find or create user in database
-    const user = await authService.findOrCreateUser(googleUser)
+    // Initialize database service to check if user exists
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    // Find user in database (do NOT create if not exists)
+    let user = await dbService.findUserByGoogleIdOrEmail(googleUser.id, googleUser.email)
+    
+    if (!user) {
+      // User not found - check if they have a pending invitation
+      const pendingInvitation = await dbService.findPendingInvitation(googleUser.email)
+      
+      if (pendingInvitation && !dbService.isInvitationExpired(pendingInvitation.expires_at)) {
+        // User has valid pending invitation - create their account
+        log.info(`Creating account for invited user: ${googleUser.email}`)
+        user = await dbService.createUserFromGoogleData(googleUser)
+        
+        // Set admin role if invitation specifies it
+        if (pendingInvitation.role === 'admin') {
+          await dbService.updateUserRole(user.id, true)
+          log.info(`Granted admin role to new user ${user.id}`)
+        }
+        
+        // Mark invitation as accepted
+        await dbService.acceptInvitation(pendingInvitation.id)
+        log.info(`✅ Invitation auto-accepted for ${googleUser.email} during first login`)
+      } else {
+        // No valid invitation found - show invitation required page
+        log.warn(`Login attempt by non-invited user: ${googleUser.email}`)
+        return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invitation Required - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-envelope text-6xl text-warning mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Invitation Required</h2>
+                    <p class="text-base-content/70 mb-2">Your Google account <strong>${googleUser.email}</strong> is not registered with this application.</p>
+                    <p class="text-base-content/70 mb-6">This application is invite-only. Please contact an administrator to request access.</p>
+                    
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle"></i>
+                        <div class="text-left">
+                            <p class="font-semibold">How to get access:</p>
+                            <ol class="list-decimal list-inside mt-2 space-y-1">
+                                <li>Contact an administrator</li>
+                                <li>Request an invitation for <strong>${googleUser.email}</strong></li>
+                                <li>Check your email for the invitation link</li>
+                                <li>Click the link to accept and gain access</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="divider">Authentication Details</div>
+                    
+                    <div class="w-full bg-base-200 rounded-lg p-4 mb-4">
+                        <div class="flex items-center gap-3">
+                            ${googleUser.picture ? `<img src="${googleUser.picture}" alt="${googleUser.name}" class="w-12 h-12 rounded-full" />` : '<i class="fas fa-user-circle text-4xl text-base-content/50"></i>'}
+                            <div class="text-left">
+                                <p class="font-semibold">${googleUser.name}</p>
+                                <p class="text-sm text-base-content/70">${googleUser.email}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-actions flex-col w-full gap-2">
+                        <a href="/login" class="btn btn-primary btn-wide">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Login
+                        </a>
+                        <a href="mailto:admin@example.com?subject=Access Request for Cycling Calories Calculator&body=Hello,%0D%0A%0D%0AI would like to request access to the Cycling Calories Calculator.%0D%0A%0D%0AMy email: ${googleUser.email}%0D%0AMy name: ${googleUser.name}%0D%0A%0D%0AThank you!" class="btn btn-ghost btn-sm">
+                            <i class="fas fa-envelope mr-2"></i>
+                            Contact Administrator
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 403)
+      }
+    }
+    
+    // User found (or was just created from invitation) - update last login and create session
+    await dbService.updateUserLastLogin(user.id)
     
     // Create session
     const sessionId = await authService.createSession(user.id)
@@ -1151,5 +1247,446 @@ function generateFilteredDataFromDB(filteredData: any, startDate: string, endDat
         </script>
     `;
 }
+
+// ============= INVITATION FUNCTIONS =============
+
+/**
+ * Generate a secure random token for invitations
+ */
+function generateInvitationToken(): string {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Calculate expiration date (7 days from now)
+ */
+function getInvitationExpiration(): string {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+  return date.toISOString()
+}
+
+/**
+ * Create email service helper
+ */
+function createEmailService(env: Bindings, requestUrl?: string): EmailService {
+  const log = createLogger('EmailService')
+  
+  // Determine app URL from environment or request
+  let appUrl = env.APP_URL || ''
+  if (!appUrl && requestUrl) {
+    const url = new URL(requestUrl)
+    appUrl = `${url.protocol}//${url.host}`
+  }
+  
+  // Fallback for local development
+  if (!appUrl) {
+    appUrl = 'http://localhost:8787'
+  }
+  
+  // Determine email provider (default to resend)
+  const provider = (env.EMAIL_PROVIDER || 'resend') as 'mailchannels' | 'resend' | 'gmail'
+  
+  const config = {
+    from_email: env.FROM_EMAIL || 'noreply@haiku-zen.com',
+    from_name: env.FROM_NAME || 'Cycling Calories Calculator',
+    app_url: appUrl,
+    provider: provider,
+    resend_api_key: env.RESEND_API_KEY,
+    // Gmail OAuth 2.0 configuration (uses existing Google OAuth credentials)
+    google_client_id: env.GOOGLE_CLIENT_ID,
+    google_client_secret: env.GOOGLE_CLIENT_SECRET,
+    google_refresh_token: env.GOOGLE_REFRESH_TOKEN,
+    gmail_user: env.GMAIL_USER || env.FROM_EMAIL
+  }
+  
+  log.info(`Email service configured with config: ${JSON.stringify(config)}`)
+  
+  return new EmailService(config)
+}
+
+// ============= ADMIN INVITATION ROUTES =============
+
+// Send invitation endpoint
+app.post('/api/admin/invitations', requireAuth, requireAdmin, async (c) => {
+  const log = createLogger('API:Invitations')
+  
+  try {
+    const user = c.get('user') as User
+    const body = await c.req.json()
+    
+    const { email, role, message } = body
+    
+    // Validate input
+    if (!email || !email.trim()) {
+      return c.json({ success: false, error: 'Email address is required' }, 400)
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      return c.json({ success: false, error: 'Invalid email address format' }, 400)
+    }
+    
+    // Validate role
+    const validRoles = ['user', 'admin']
+    const invitationRole = role && validRoles.includes(role) ? role : 'user'
+    
+    log.info(`Admin ${user.email} (ID: ${user.id}) is inviting ${email} with role ${invitationRole}`)
+    
+    // Initialize database service
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    // Check if user already exists
+    const existingUser = await dbService.findUserByEmail(email.trim())
+    if (existingUser) {
+      log.warn(`User with email ${email} already exists`)
+      return c.json({ success: false, error: 'A user with this email address already exists' }, 409)
+    }
+    
+    // Check for existing pending invitation
+    const existingInvitation = await dbService.findPendingInvitation(email.trim())
+    if (existingInvitation) {
+      const expiresAt = new Date(existingInvitation.expires_at as string)
+      if (expiresAt > new Date()) {
+        log.warn(`Pending invitation already exists for ${email}`)
+        return c.json({ 
+          success: false, 
+          error: 'An active invitation has already been sent to this email address' 
+        }, 409)
+      }
+    }
+    
+    // Generate invitation token
+    const token = generateInvitationToken()
+    const expiresAt = getInvitationExpiration()
+    
+    // Store invitation in database
+    const created = await dbService.createInvitation(
+      email.trim(),
+      token,
+      invitationRole,
+      message?.trim() || null,
+      user.id,
+      expiresAt
+    )
+    
+    if (!created) {
+      log.error('Failed to create invitation in database')
+      return c.json({ success: false, error: 'Failed to create invitation' }, 500)
+    }
+    
+    log.info(`Invitation created with token: ${token.substring(0, 8)}...`)
+    
+    // Send invitation email
+    const emailService = createEmailService(c.env, c.req.url)
+    const emailSent = await emailService.sendInvitationEmail({
+      to_email: email.trim(),
+      to_name: email.split('@')[0],
+      inviter_name: user.name,
+      invitation_token: token,
+      invitation_message: message?.trim(),
+      role: invitationRole
+    })
+    
+    if (!emailSent) {
+      log.warn('Failed to send invitation email, but invitation was created')
+      return c.json({ 
+        success: true, 
+        message: 'Invitation created, but email sending failed. Please check email configuration.',
+        warning: true
+      })
+    }
+    
+    log.info(`✅ Invitation sent successfully to ${email}`)
+    
+    return c.json({ 
+      success: true, 
+      message: `Invitation sent successfully to ${email}` 
+    })
+    
+  } catch (error) {
+    log.error('Error sending invitation:', error)
+    return c.json({ 
+      success: false, 
+      error: 'An error occurred while sending the invitation' 
+    }, 500)
+  }
+})
+
+// Get all invitations (admin only)
+app.get('/api/admin/invitations', requireAuth, requireAdmin, async (c) => {
+  const log = createLogger('API:Invitations:List')
+  
+  try {
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    const invitations = await dbService.getAllInvitations()
+    
+    return c.json({ success: true, invitations })
+  } catch (error) {
+    log.error('Error fetching invitations:', error)
+    return c.json({ success: false, error: 'Failed to fetch invitations' }, 500)
+  }
+})
+
+// Delete/revoke invitation (admin only)
+app.delete('/api/admin/invitations/:id', requireAuth, requireAdmin, async (c) => {
+  const log = createLogger('API:Invitations:Delete')
+  const invitationId = parseInt(c.req.param('id'))
+  
+  try {
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    const deleted = await dbService.deleteInvitation(invitationId)
+    
+    if (deleted) {
+      log.info(`Invitation ${invitationId} deleted`)
+      return c.json({ success: true, message: 'Invitation deleted' })
+    } else {
+      return c.json({ success: false, error: 'Invitation not found' }, 404)
+    }
+  } catch (error) {
+    log.error('Error deleting invitation:', error)
+    return c.json({ success: false, error: 'Failed to delete invitation' }, 500)
+  }
+})
+
+// Accept invitation endpoint - redirects to login where account will be auto-created
+app.get('/accept-invitation', async (c) => {
+  const log = createLogger('API:AcceptInvitation')
+  
+  try {
+    const token = c.req.query('token')
+    
+    // Validate token parameter
+    if (!token || token.trim() === '') {
+      return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invalid Invitation - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-exclamation-triangle text-6xl text-error mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Invalid Invitation</h2>
+                    <p class="text-base-content/70 mb-6">The invitation link is missing or invalid.</p>
+                    <div class="card-actions">
+                        <a href="/" class="btn btn-primary">Go to Home</a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 400)
+    }
+    
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    // Find invitation by token (including already accepted invitations for better UX)
+    const invitation = await dbService.db
+      .prepare('SELECT * FROM invitations WHERE token = ?')
+      .bind(token)
+      .first()
+    
+    if (!invitation) {
+      log.warn(`Invitation not found for token: ${token.substring(0, 8)}...`)
+      return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invitation Not Found - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-times-circle text-6xl text-error mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Invitation Not Found</h2>
+                    <p class="text-base-content/70 mb-6">This invitation link is invalid or has already been used.</p>
+                    <div class="card-actions">
+                        <a href="/" class="btn btn-primary">Go to Home</a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 404)
+    }
+    
+    // Check invitation status
+    if (invitation.status === 'accepted') {
+      // Invitation already accepted - show success message and redirect to login
+      log.info(`Invitation already accepted for: ${invitation.email}`)
+      return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Already Accepted - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+            <script>
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 3000);
+            </script>
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-check-circle text-6xl text-success mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Invitation Already Accepted</h2>
+                    <p class="text-base-content/70 mb-6">This invitation has already been accepted. Please sign in to access your account.</p>
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Redirecting to login in 3 seconds...</span>
+                    </div>
+                    <div class="card-actions">
+                        <a href="/login" class="btn btn-primary btn-wide">
+                            <i class="fab fa-google mr-2"></i>
+                            Sign In Now
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 200)
+    }
+    
+    // Check if invitation has expired
+    if (dbService.isInvitationExpired(invitation.expires_at)) {
+      log.warn(`Invitation expired for email: ${invitation.email}`)
+      return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invitation Expired - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-clock text-6xl text-warning mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Invitation Expired</h2>
+                    <p class="text-base-content/70 mb-6">This invitation link has expired. Please contact an administrator for a new invitation.</p>
+                    <div class="card-actions">
+                        <a href="/" class="btn btn-primary">Go to Home</a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 410)
+    }
+    
+    // Valid pending invitation found - redirect to login
+    // The OAuth callback will automatically create the account when user signs in
+    log.info(`Valid invitation found for: ${invitation.email}, redirecting to login`)
+    
+    return c.html(`
+        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Sign In Required - Cycling Calories Calculator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        </head>
+        <body class="bg-base-200 min-h-screen flex items-center justify-center">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body items-center text-center">
+                    <i class="fas fa-envelope-open-text text-6xl text-success mb-4"></i>
+                    <h2 class="card-title text-2xl mb-2">Welcome!</h2>
+                    <p class="text-base-content/70 mb-2">You've been invited to join Cycling Calories Calculator.</p>
+                    <p class="text-base-content/70 mb-6">Sign in with <strong>${invitation.email}</strong> to create your account and get started.</p>
+                    
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle"></i>
+                        <div class="text-left">
+                            <p class="font-semibold mb-1">What happens next:</p>
+                            <ol class="list-decimal list-inside space-y-1">
+                                <li>Click "Sign In with Google" below</li>
+                                <li>Use your <strong>${invitation.email}</strong> account</li>
+                                <li>Your account will be created automatically</li>
+                                <li>Start tracking your cycling activities!</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    ${invitation.role === 'admin' ? `
+                    <div class="alert alert-success mb-4">
+                        <i class="fas fa-star"></i>
+                        <span><strong>Admin Access</strong> - You'll have administrator privileges!</span>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="card-actions w-full">
+                        <a href="/login" class="btn btn-primary btn-wide btn-lg">
+                            <i class="fab fa-google mr-2"></i>
+                            Sign In with Google
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+      `, 200)
+    
+  } catch (error) {
+    log.error('Error accepting invitation:', error)
+    return c.html(`
+      <!DOCTYPE html>
+      <html lang="en" data-theme="light">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Error - Cycling Calories Calculator</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+      </head>
+      <body class="bg-base-200 min-h-screen flex items-center justify-center">
+          <div class="card w-96 bg-base-100 shadow-xl">
+              <div class="card-body items-center text-center">
+                  <i class="fas fa-exclamation-circle text-6xl text-error mb-4"></i>
+                  <h2 class="card-title text-2xl mb-2">An Error Occurred</h2>
+                  <p class="text-base-content/70 mb-6">We couldn't process your invitation. Please try again or contact an administrator.</p>
+                  <div class="card-actions">
+                      <a href="/" class="btn btn-primary">Go to Home</a>
+                  </div>
+              </div>
+          </div>
+      </body>
+      </html>
+    `, 500)
+  }
+})
 
 export default app

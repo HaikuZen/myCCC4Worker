@@ -29,12 +29,15 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0",
+    "googleapis": "^161.0.0",
     "hono": "^4.5.0",
+    "nodemailer": "^7.0.6",
     "vitest": "^3.2.4",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240925.0",
+    "@types/nodemailer": "^7.0.2",
     "@types/xml2js": "^0.4.14",
     "typescript": "^5.9.2",
     "wrangler": "^4.40.3"

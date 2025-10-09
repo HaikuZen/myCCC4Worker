@@ -91,6 +91,21 @@ CREATE TABLE IF NOT EXISTS sessions (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- Invitations table for user invitations
+CREATE TABLE IF NOT EXISTS invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    status TEXT NOT NULL DEFAULT 'pending',
+    message TEXT,
+    invited_by INTEGER NOT NULL,
+    expires_at TEXT NOT NULL,
+    accepted_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (invited_by) REFERENCES users (id) ON DELETE CASCADE
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rides_user ON rides (user_id);
 CREATE INDEX IF NOT EXISTS idx_rides_date ON rides (ride_date);
@@ -103,6 +118,10 @@ CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id);
 CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users (email_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations (email);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations (status);
+CREATE INDEX IF NOT EXISTS idx_invitations_expires ON invitations (expires_at);
 
 -- Insert default configuration values
 INSERT OR IGNORE INTO configuration (key, value, value_type, description, category) VALUES

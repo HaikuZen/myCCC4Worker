@@ -142,6 +142,9 @@
                             <li id="adminMenuDatabase" class="hidden">
                                 <a href="/database" target="_blank"><i class="fas fa-database mr-2"></i>Database Admin</a>
                             </li>
+                            <li id="adminMenuInvite" class="hidden">
+                                <a onclick="openInvitationModal()"><i class="fas fa-user-plus mr-2"></i>Invite User</a>
+                            </li>
                             <li><hr></li>
                             <li>
                                 <form action="/auth/logout" method="post" class="w-full">
@@ -750,6 +753,91 @@
             </div>
         </div>
         <label class="modal-backdrop" for="rideAnalysisModalToggle">Close</label>
+    </div>
+
+    <!-- Invitation Modal -->
+    <input type="checkbox" id="invitationModalToggle" class="modal-toggle" />
+    <div id="invitationModal" class="modal" role="dialog">
+        <div class="modal-box w-11/12 max-w-2xl">
+            <label for="invitationModalToggle" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</label>
+            
+            <!-- Modal Header -->
+            <div class="flex items-center mb-6">
+                <i class="fas fa-user-plus text-primary text-2xl mr-3"></i>
+                <div>
+                    <h3 class="font-bold text-2xl">Invite New User</h3>
+                    <p class="text-base-content/70">Send an invitation to join the platform</p>
+                </div>
+            </div>
+
+            <!-- Invitation Form -->
+            <form id="invitationForm" class="space-y-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Email Address</span>
+                    </label>
+                    <input 
+                        type="email" 
+                        id="inviteEmail" 
+                        name="email" 
+                        placeholder="user@example.com" 
+                        class="input input-bordered w-full" 
+                        required 
+                    />
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/60">The invitation will be sent to this email address</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">User Role</span>
+                    </label>
+                    <select id="inviteRole" name="role" class="select select-bordered w-full" required>
+                        <option value="user" selected>User</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/60">Select the role for the invited user</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Invitation Message (Optional)</span>
+                    </label>
+                    <textarea 
+                        id="inviteMessage" 
+                        name="message" 
+                        placeholder="Add a personal message to the invitation..." 
+                        class="textarea textarea-bordered h-24" 
+                    ></textarea>
+                </div>
+
+                <!-- Status Messages -->
+                <div id="invitationSuccess" class="alert alert-success hidden">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Invitation sent successfully!</span>
+                </div>
+
+                <div id="invitationError" class="alert alert-error hidden">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="invitationErrorMessage">Failed to send invitation</span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-2 mt-6">
+                    <label for="invitationModalToggle" class="btn btn-ghost">
+                        Cancel
+                    </label>
+                    <button type="submit" class="btn btn-primary" id="sendInvitationBtn">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        Send Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+        <label class="modal-backdrop" for="invitationModalToggle">Close</label>
     </div>
 
     <!-- Cookie Consent Banner -->

@@ -5,6 +5,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 ## ✨ What's New in v2.0
 
 - 🔐 **Google OAuth2 Authentication**: Secure user authentication with Google accounts and session management
+- 📧 **User Invitation System**: Admin-only email invitations with multiple email providers (Gmail, MailChannels, Resend)
 - 👥 **User-Specific Rides**: Each ride is now associated with the user who uploaded it, ensuring data privacy
 - 🔬 **Detailed Ride Analysis Modal**: Click any ride to view comprehensive analysis with interactive charts
 - 📊 **Enhanced Dashboard**: Improved statistics with monthly summaries and performance trends  
@@ -54,6 +55,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 🔒 **Role-Based Access**: Admin privileges for sensitive operations like database management
 - 🚪 **Protected Routes**: Authentication required for uploads and data management
 - 🔄 **Session Cleanup**: Automatic expired session removal
+- 📧 **User Invitations**: Admin-only email invitation system with role assignment and expiration
 
 ### Privacy & Compliance
 - 🍪 **GDPR Cookie Consent**: Full GDPR-compliant cookie consent banner with granular controls
@@ -113,18 +115,59 @@ A modern, serverless web application for comprehensive cycling analytics and cal
    Get your free API key from [OpenWeatherMap](https://openweathermap.org/api).
    Without an API key, the app will use demo geocoding data for common cities.
 
-5. **Initialize database schema:**
+5. **Configure Email for Invitations (Optional):**
+   The application supports **three email providers** for sending invitation emails:
+   
+   **Option 1: Gmail (via SMTP)**
+   Perfect for development and personal projects:
+   ```bash
+   # For local development - create .dev.vars file
+   cp .dev.vars.example .dev.vars
+   # Edit .dev.vars with your Gmail credentials
+   
+   # For production - set as secrets
+   npx wrangler secret put GMAIL_PASSWORD
+   ```
+   
+   📧 **Quick Gmail Setup** (2 minutes):
+   1. Enable Gmail API in Google Cloud Console
+   2. Set `EMAIL_PROVIDER=gmail` and `GMAIL_USER` in `.dev.vars`
+   3. Uses your existing OAuth credentials - no App Password needed!
+   4. See [`readmes/GMAIL_OAUTH2_QUICKSTART.md`](readmes/GMAIL_OAUTH2_QUICKSTART.md) for details
+   
+   **Option 2: MailChannels (Default)**
+   Free for Cloudflare Workers, works out-of-the-box:
+   ```bash
+   # Set email configuration (no API key needed)
+   npx wrangler secret put FROM_EMAIL
+   npx wrangler secret put FROM_NAME
+   npx wrangler secret put APP_URL
+   ```
+   
+   **Option 3: Resend**
+   Modern email API for developers:
+   ```bash
+   # Set Resend API key
+   npx wrangler secret put RESEND_API_KEY
+   ```
+   
+   📚 **Email Documentation**:
+   - Gmail OAuth 2.0: [`readmes/GMAIL_OAUTH2_QUICKSTART.md`](readmes/GMAIL_OAUTH2_QUICKSTART.md) (2-minute setup)
+   - Email Service: [`readmes/EMAIL_README.md`](readmes/EMAIL_README.md) (overview)
+   - Original System: [`readmes/INVITATION_SYSTEM.md`](readmes/INVITATION_SYSTEM.md)
+
+6. **Initialize database schema:**
    ```bash
    npm run db:init
    ```
 
-5. **Start development server:**
+7. **Start development server:**
    ```bash
    npm run dev
    ```
    The app will be available at http://localhost:8787
 
-6. **Deploy to Cloudflare:**
+8. **Deploy to Cloudflare:**
    ```bash
    npm run deploy
    ```
@@ -149,27 +192,39 @@ myCCC/
 │       ├── database-service.ts # D1 database operations
 │       ├── cycling-database.ts # Legacy database compatibility
 │       ├── auth.ts           # Google OAuth2 authentication service
+│       ├── email-service.ts  # Email service for invitations (Gmail/MailChannels/Resend)
 │       ├── weather.ts        # Weather service module
 │       └── logger.ts         # Structured logging utility
 ├── web/                       # Static web application files
 │   ├── index.html            # Main page with authentication UI
 │   ├── database.html         # Database management page (admin only)
+│   ├── configuration.html    # Configuration management page (admin only)
 │   ├── styles.css            # Application styles
 │   ├── app.js                # Main JavaScript with authentication
 │   ├── cookie-consent.js     # GDPR cookie consent management
 │   ├── database-manager.js   # Database management scripts
+│   ├── configuration-manager.js # Configuration management scripts
 │   └── test/                 # Web-based tests
 ├── wrangler.jsonc             # Cloudflare Workers configuration
-├── schema.sql                 # Database schema with auth tables
+├── schema.sql                 # Database schema with auth & invitation tables
 ├── database.js                # D1-compatible database class
 ├── migrations/                # Database migrations
 │   ├── 0001_add_email_hash.sql # Email privacy migration
 │   ├── 0002_add_user_id_to_rides.sql # User-ride association
+│   ├── 001_add_invitations.sql # User invitation system
 │   └── README.md             # Migration documentation
 ├── AUTHENTICATION_SETUP.md    # Google OAuth2 setup guide
 ├── PRIVACY_IMPLEMENTATION.md  # Email privacy documentation
 ├── USER_RIDE_ASSOCIATION.md   # User-ride relationship documentation
 ├── GDPR_COOKIE_COMPLIANCE.md  # Cookie consent documentation
+├── INVITATION_SYSTEM.md       # User invitation system documentation
+├── QUICK_START_INVITATIONS.md # Quick start guide for testing invitations
+├── readmes/                   # Documentation files
+│   ├── GMAIL_OAUTH2_QUICKSTART.md # Gmail OAuth 2.0 setup (2 minutes)
+│   ├── EMAIL_README.md        # Email service overview
+│   ├── INVITATION_SYSTEM.md   # User invitation system
+│   └── ... (other documentation)
+├── .dev.vars.example          # Environment variables template
 └── package.json               # Dependencies and scripts
 ```
 
@@ -207,14 +262,25 @@ myCCC/
    - **Route Segments**: Detailed segment analysis with performance data
    - **Environmental Data**: Weather conditions and their impact on performance
 
-4. **Data Management**: Powerful tools for managing your cycling data
+4. **User Invitations** (🔒 Admin Only): Invite new users to the platform
+   - **Multiple Email Providers**: Choose between Gmail, MailChannels, or Resend
+   - **Gmail OAuth 2.0**: Uses existing Google OAuth credentials - no App Password needed!
+   - **Email Invitations**: Send professional invitation emails with unique tokens
+   - **Role Assignment**: Invite users as regular users or administrators
+   - **Personal Messages**: Include custom messages with invitations
+   - **Automatic Expiration**: Invitations expire after 7 days for security
+   - **Duplicate Prevention**: System checks for existing users and pending invitations
+   - **Beautiful Emails**: Responsive HTML email templates
+   - Access via user avatar menu → "Invite User"
+
+5. **Data Management**: Powerful tools for managing your cycling data
    - **Database Interface**: Built-in web interface for viewing and editing data
    - **GPX Downloads**: Retrieve original GPX files anytime
    - **Data Export**: Export ride data as CSV for external analysis
    - **Configuration**: Customize settings and preferences
    - **Database Optimization**: Tools for maintaining optimal performance
 
-5. **Filtering & Analysis**: Advanced data filtering capabilities
+6. **Filtering & Analysis**: Advanced data filtering capabilities
    - Filter rides by date range for specific period analysis
    - Compare performance across different time periods
    - Track seasonal patterns and improvements
@@ -236,6 +302,7 @@ D1 provides a serverless SQLite database that scales automatically and is global
 - `rides` - Core ride data and GPX storage with user associations
 - `users` - User profiles from Google OAuth2
 - `sessions` - Secure session management
+- `invitations` - User invitation system with email tokens
 - `calorie_breakdown` - Detailed calorie calculation factors
 - `configuration` - Application settings and preferences
 
@@ -322,13 +389,24 @@ The Cloudflare Workers application provides several API endpoints:
 ### Database Management (🔒 Admin Access Required)
 - `GET /api/database/overview` - Database statistics and overview
 - `GET /api/configuration` - Get all configuration settings
-- `GET /api/database/table/{tableName}` - View table data (rides, calorie_breakdown, configuration, users, sessions)
+- `GET /api/database/table/{tableName}` - View table data (rides, calorie_breakdown, configuration, users, sessions, invitations)
 - `PUT /api/database/table/{tableName}/{recordId}` - Update database records
 - `DELETE /api/database/table/{tableName}/{recordId}` - Delete database records
 - `GET /api/database/export/{tableName}` - Export table data as CSV
 - `POST /api/database/query` - Execute custom SELECT queries
 - `POST /api/database/cleanup` - Clean orphaned records
 - `POST /api/database/optimize` - Optimize database performance
+
+### User Invitations (🔒 Admin Access Required)
+- `POST /api/admin/invitations` - Send invitation email to new user
+  - Required fields: `email`, optional: `role` (user|admin), `message`
+  - Sends beautiful HTML email via Gmail/MailChannels/Resend
+  - Generates secure 256-bit token with 7-day expiration
+  - Validates email format and checks for duplicates
+- `GET /api/admin/invitations` - List all invitations
+  - Returns invitation details with inviter information
+  - Shows status: pending, accepted, expired, revoked
+- `DELETE /api/admin/invitations/{id}` - Revoke/delete invitation
 
 ### Static Routes
 - `GET /` - Main application dashboard
@@ -345,6 +423,10 @@ The Cloudflare Workers application provides several API endpoints:
 - **Database**: Cloudflare D1 (SQLite-compatible serverless database)
 - **Language**: TypeScript with full type safety and modern ES features
 - **Build Tool**: Wrangler CLI (Cloudflare's development toolkit)
+- **Email**: Multiple providers supported:
+  - **Gmail** via nodemailer with OAuth 2.0 - Reuses existing Google OAuth credentials
+  - **MailChannels** API - Free for Cloudflare Workers
+  - **Resend** API - Modern developer email service
 - **APIs**: OpenWeatherMap integration for live weather data
 
 ### Frontend & UI
@@ -373,10 +455,22 @@ No hardcoded URLs to update! Just configure your Google OAuth2 credentials and y
 | `GOOGLE_CLIENT_ID` | OAuth2 Client ID | Yes |
 | `GOOGLE_CLIENT_SECRET` | OAuth2 Client Secret | Yes |
 | `JWT_SECRET` | Session signing key | Yes |
-| `REDIRECT_URI` | Explicit callback URL | Optional |
-| `WEATHER_API_KEY` | OpenWeatherMap API | Optional |
+|| `REDIRECT_URI` | Explicit callback URL | Optional |
+|| `WEATHER_API_KEY` | OpenWeatherMap API | Optional |
+|| `EMAIL_PROVIDER` | Email provider (gmail/mailchannels/resend) | Optional* |
+|| `FROM_EMAIL` | Invitation sender email | Optional* |
+|| `FROM_NAME` | Invitation sender name | Optional* |
+|| `APP_URL` | Application URL for links | Optional* |
+|| `GMAIL_USER` | Gmail address for sending | Optional** |
+|| `GOOGLE_REFRESH_TOKEN` | OAuth refresh token for Gmail | Optional** |
+|| `RESEND_API_KEY` | Resend API key | Optional*** |
 
-See [`AUTHENTICATION_SETUP.md`](AUTHENTICATION_SETUP.md) for detailed configuration.
+*Required for invitation system. Defaults provided for development.  
+**Required only if `EMAIL_PROVIDER=gmail`. Uses existing `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. See [`readmes/GMAIL_OAUTH2_QUICKSTART.md`](readmes/GMAIL_OAUTH2_QUICKSTART.md).  
+***Required only if `EMAIL_PROVIDER=resend`.
+
+See [`readmes/AUTHENTICATION_SETUP.md`](readmes/AUTHENTICATION_SETUP.md) for authentication configuration.  
+See [`readmes/EMAIL_README.md`](readmes/EMAIL_README.md) for email provider setup.
 
 ## Requirements
 

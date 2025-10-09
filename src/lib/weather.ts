@@ -58,7 +58,7 @@ export class WeatherService {
       return { success: false, error: 'Location parameter is required and must be at least 2 characters long' }
     }
 
-    this.log.info(`🌍 Geocoding location: ${locationName}`)
+    //this.log.info(`🌍 Geocoding location: ${locationName}`)
 
     if (!this.apiKey) {
       this.log.warn('No weather API key found in environment, using demo mode')
@@ -101,7 +101,7 @@ export class WeatherService {
         state: location.state || null
       }
 
-      this.log.info(`✅ Location found:`, locationData)
+      //this.log.info(`✅ Location found:`, locationData)
 
       return { success: true, data: locationData, demo: false }
     } catch (error) {

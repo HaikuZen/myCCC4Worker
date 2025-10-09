@@ -163,6 +163,12 @@ export class CyclingDatabase {
   private db: D1Database;
   private isInitialized: boolean = false;
   private log = createLogger('CyclingDatabase');
+  
+  /**
+   * Valid tables that can be accessed in database operations
+   * This array includes all tables that support CRUD operations
+   */
+  protected readonly validTables = ['rides', 'calorie_breakdown', 'configuration', 'users', 'sessions', 'invitations'];
 
   constructor(db: D1Database) {
     this.db = db;
@@ -1448,8 +1454,7 @@ export class CyclingDatabase {
   async getTableData(tableName: string): Promise<{ rows: any; columns: any }> {
     if (!this.isInitialized) await this.initialize()
 
-    const validTables = ['rides', 'calorie_breakdown', 'configuration', 'users', 'sessions']
-    if (!validTables.includes(tableName)) {
+    if (!this.validTables.includes(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`)
     }
     
@@ -1484,8 +1489,7 @@ export class CyclingDatabase {
   async updateRecord(tableName: string, recordId: string | number, updateData: Record<string, any>): Promise<{ changes: number }> {
     if (!this.isInitialized) await this.initialize()
     
-    const validTables = ['rides', 'calorie_breakdown', 'configuration']
-    if (!validTables.includes(tableName)) {
+    if (!this.validTables.includes(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`)
     }
     
@@ -1521,8 +1525,7 @@ export class CyclingDatabase {
   async deleteRecord(tableName: string, recordId: string | number): Promise<{ changes: number }> {
     if (!this.isInitialized) await this.initialize()
     
-    const validTables = ['rides', 'calorie_breakdown', 'configuration']
-    if (!validTables.includes(tableName)) {
+    if (!this.validTables.includes(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`)
     }
     
@@ -1573,8 +1576,7 @@ export class CyclingDatabase {
   async exportTableToCsv(tableName: string): Promise<string> {
     if (!this.isInitialized) await this.initialize()
     
-    const validTables = ['rides', 'calorie_breakdown', 'configuration']
-    if (!validTables.includes(tableName)) {
+    if (!this.validTables.includes(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`)
     }
     
