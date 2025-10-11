@@ -168,7 +168,7 @@ export class CyclingDatabase {
    * Valid tables that can be accessed in database operations
    * This array includes all tables that support CRUD operations
    */
-  protected readonly validTables = ['rides', 'calorie_breakdown', 'configuration', 'users', 'sessions', 'invitations'];
+  protected readonly validTables = ['rides', 'calorie_breakdown', 'configuration', 'users', 'sessions', 'invitations', 'profiles'];
 
   constructor(db: D1Database) {
     this.db = db;

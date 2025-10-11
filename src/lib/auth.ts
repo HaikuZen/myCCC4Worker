@@ -20,6 +20,16 @@ export interface User {
   updated_at: string;
 }
 
+export interface Profile {
+  id?: number;
+  user_id: number;
+  nickname?: string;
+  weight?: number;
+  cycling_type?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Session {
   id: string;
   user_id: number;

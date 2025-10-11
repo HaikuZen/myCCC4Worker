@@ -135,7 +135,7 @@
                                 </div>
                             </li>
                             <li><hr></li>
-                            <li><a href="#dashboard"><i class="fas fa-user mr-2"></i>Profile</a></li>
+                            <li><a onclick="openProfileModal()"><i class="fas fa-user mr-2"></i>Profile</a></li>
                             <li id="adminMenuConfig" class="hidden">
                                 <a href="/configuration" target="_blank"><i class="fas fa-cog mr-2"></i>Configuration</a>
                             </li>
@@ -838,6 +838,104 @@
             </form>
         </div>
         <label class="modal-backdrop" for="invitationModalToggle">Close</label>
+    </div>
+
+    <!-- Profile Modal -->
+    <input type="checkbox" id="profileModalToggle" class="modal-toggle" />
+    <div id="profileModal" class="modal" role="dialog">
+        <div class="modal-box w-11/12 max-w-2xl">
+            <label for="profileModalToggle" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</label>
+            
+            <!-- Modal Header -->
+            <div class="flex items-center mb-6">
+                <i class="fas fa-user-circle text-primary text-2xl mr-3"></i>
+                <div>
+                    <h3 class="font-bold text-2xl">Edit Profile</h3>
+                    <p class="text-base-content/70">Update your cycling profile information</p>
+                </div>
+            </div>
+
+            <!-- Profile Form -->
+            <form id="profileForm" class="space-y-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Nickname</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="profileNickname" 
+                        name="nickname" 
+                        placeholder="Your cycling nickname" 
+                        class="input input-bordered w-full" 
+                    />
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/60">Optional: A nickname to display instead of your full name</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Weight (kg)</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        id="profileWeight" 
+                        name="weight" 
+                        placeholder="70" 
+                        step="0.1" 
+                        min="30" 
+                        max="200" 
+                        class="input input-bordered w-full" 
+                    />
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/60">Your weight in kilograms for calorie calculations</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Preferred Cycling Type</span>
+                    </label>
+                    <select id="profileCyclingType" name="cycling_type" class="select select-bordered w-full">
+                        <option value="" disabled selected>Select cycling type</option>
+                        <option value="road">Road Cycling</option>
+                        <option value="gravel">Gravel</option>
+                        <option value="mountain">Mountain Biking</option>
+                        <option value="track">Track Cycling</option>
+                        <option value="bmx">BMX</option>
+                        <option value="cyclocross">Cyclocross</option>
+                        <option value="touring">Touring</option>
+                        <option value="commuting">Commuting</option>
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/60">Your primary cycling discipline</span>
+                    </label>
+                </div>
+
+                <!-- Status Messages -->
+                <div id="profileSuccess" class="alert alert-success hidden">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Profile updated successfully!</span>
+                </div>
+
+                <div id="profileError" class="alert alert-error hidden">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="profileErrorMessage">Failed to update profile</span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-2 mt-6">
+                    <label for="profileModalToggle" class="btn btn-ghost">
+                        Cancel
+                    </label>
+                    <button type="submit" class="btn btn-primary" id="saveProfileBtn">
+                        <i class="fas fa-save mr-2"></i>
+                        Save Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+        <label class="modal-backdrop" for="profileModalToggle">Close</label>
     </div>
 
     <!-- Cookie Consent Banner -->

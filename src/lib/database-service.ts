@@ -826,4 +826,124 @@ export class DatabaseService extends CyclingDatabase{
       throw error
     }
   }
+
+  // ============= PROFILE MANAGEMENT =============
+
+  /**
+   * Get user profile by user ID
+   */
+  async getProfile(userId: number): Promise<any | null> {
+    try {
+      const profile = await this.db
+        .prepare('SELECT * FROM profiles WHERE user_id = ?')
+        .bind(userId)
+        .first()
+      
+      return profile || null
+    } catch (error) {
+      this.logger.error('Error getting profile:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new profile for user
+   */
+  async createProfile(
+    userId: number,
+    nickname?: string,
+    weight?: number,
+    cyclingType?: string
+  ): Promise<any> {
+    try {
+      const now = new Date().toISOString()
+      const result = await this.db
+        .prepare(
+          `INSERT INTO profiles (user_id, nickname, weight, cycling_type, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .bind(userId, nickname || null, weight || null, cyclingType || null, now, now)
+        .run()
+      
+      if (!result.success || !result.meta.last_row_id) {
+        throw new Error('Failed to create profile')
+      }
+      
+      const newProfile = await this.db
+        .prepare('SELECT * FROM profiles WHERE id = ?')
+        .bind(result.meta.last_row_id)
+        .first()
+      
+      this.logger.info(`Profile created for user ${userId}`)
+      return newProfile
+    } catch (error) {
+      this.logger.error('Error creating profile:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(
+    userId: number,
+    nickname?: string,
+    weight?: number,
+    cyclingType?: string
+  ): Promise<boolean> {
+    try {
+      const now = new Date().toISOString()
+      
+      // Check if profile exists
+      const existingProfile = await this.getProfile(userId)
+      
+      if (!existingProfile) {
+        // Create new profile if it doesn't exist
+        await this.createProfile(userId, nickname, weight, cyclingType)
+        return true
+      }
+      
+      // Update existing profile
+      const result = await this.db
+        .prepare(
+          `UPDATE profiles 
+           SET nickname = ?, weight = ?, cycling_type = ?, updated_at = ?
+           WHERE user_id = ?`
+        )
+        .bind(nickname || null, weight || null, cyclingType || null, now, userId)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Profile updated for user ${userId}`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error updating profile:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete user profile
+   */
+  async deleteProfile(userId: number): Promise<boolean> {
+    try {
+      const result = await this.db
+        .prepare('DELETE FROM profiles WHERE user_id = ?')
+        .bind(userId)
+        .run()
+      
+      if (result.success) {
+        this.logger.info(`Profile deleted for user ${userId}`)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      this.logger.error('Error deleting profile:', error)
+      throw error
+    }
+  }
 }

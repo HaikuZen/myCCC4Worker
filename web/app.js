@@ -219,6 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeWeatherForecast();
     initializeDashboard();
     initializeInvitationForm();
+    initializeProfileForm();
     
     // Load real data from database or fallback to sample data
     loadDatabaseData();
@@ -3052,5 +3053,170 @@ function initializeInvitationForm() {
     const form = document.getElementById('invitationForm');
     if (form) {
         form.addEventListener('submit', handleInvitationSubmit);
+    }
+}
+
+// ============= PROFILE FUNCTIONS =============
+
+// Open profile modal and load current profile data
+async function openProfileModal() {
+    // Reset form
+    const form = document.getElementById('profileForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Hide status messages
+    hideProfileMessages();
+    
+    // Open modal
+    const modalToggle = document.getElementById('profileModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = true;
+    }
+    
+    // Load current profile data
+    await loadProfileData();
+}
+
+// Close profile modal
+function closeProfileModal() {
+    const modalToggle = document.getElementById('profileModalToggle');
+    if (modalToggle) {
+        modalToggle.checked = false;
+    }
+}
+
+// Hide profile status messages
+function hideProfileMessages() {
+    const successMsg = document.getElementById('profileSuccess');
+    const errorMsg = document.getElementById('profileError');
+    
+    if (successMsg) successMsg.classList.add('hidden');
+    if (errorMsg) errorMsg.classList.add('hidden');
+}
+
+// Show profile success message
+function showProfileSuccess(message = 'Profile updated successfully!') {
+    const successMsg = document.getElementById('profileSuccess');
+    const errorMsg = document.getElementById('profileError');
+    
+    if (errorMsg) errorMsg.classList.add('hidden');
+    if (successMsg) {
+        successMsg.classList.remove('hidden');
+        const span = successMsg.querySelector('span');
+        if (span) span.textContent = message;
+    }
+}
+
+// Show profile error message
+function showProfileError(message = 'Failed to update profile') {
+    const successMsg = document.getElementById('profileSuccess');
+    const errorMsg = document.getElementById('profileError');
+    const errorMessageSpan = document.getElementById('profileErrorMessage');
+    
+    if (successMsg) successMsg.classList.add('hidden');
+    if (errorMsg) {
+        errorMsg.classList.remove('hidden');
+    }
+    if (errorMessageSpan) {
+        errorMessageSpan.textContent = message;
+    }
+}
+
+// Load profile data from API
+async function loadProfileData() {
+    try {
+        const response = await fetch('/api/profile');
+        
+        if (!response.ok) {
+            throw new Error('Failed to load profile');
+        }
+        
+        const profile = await response.json();
+        
+        // Populate form fields
+        const nicknameInput = document.getElementById('profileNickname');
+        const weightInput = document.getElementById('profileWeight');
+        const cyclingTypeSelect = document.getElementById('profileCyclingType');
+        
+        if (nicknameInput) nicknameInput.value = profile.nickname || '';
+        if (weightInput) weightInput.value = profile.weight || '';
+        if (cyclingTypeSelect) {
+            if (profile.cycling_type) {
+                cyclingTypeSelect.value = profile.cycling_type;
+            } else {
+                cyclingTypeSelect.selectedIndex = 0; // Reset to placeholder
+            }
+        }
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        showProfileError('Failed to load profile data');
+    }
+}
+
+// Handle profile form submission
+async function handleProfileSubmit(event) {
+    event.preventDefault();
+    
+    // Get form data
+    const nickname = document.getElementById('profileNickname')?.value;
+    const weight = document.getElementById('profileWeight')?.value;
+    const cyclingType = document.getElementById('profileCyclingType')?.value;
+    
+    // Hide previous messages
+    hideProfileMessages();
+    
+    // Disable submit button
+    const submitBtn = document.getElementById('saveProfileBtn');
+    const originalBtnText = submitBtn?.innerHTML;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm mr-2"></span>Saving...';
+    }
+    
+    try {
+        const response = await fetch('/api/profile', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                nickname: nickname?.trim() || null,
+                weight: weight ? parseFloat(weight) : null,
+                cycling_type: cyclingType || null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showProfileSuccess(result.message || 'Profile updated successfully!');
+            
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                hideProfileMessages();
+                closeProfileModal();
+            }, 2000);
+        } else {
+            showProfileError(result.error || 'Failed to update profile');
+        }
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        showProfileError('Network error. Please try again.');
+    } finally {
+        // Re-enable submit button
+        if (submitBtn && originalBtnText) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    }
+}
+
+// Initialize profile form
+function initializeProfileForm() {
+    const form = document.getElementById('profileForm');
+    if (form) {
+        form.addEventListener('submit', handleProfileSubmit);
     }
 }

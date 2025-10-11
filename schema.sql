@@ -106,6 +106,18 @@ CREATE TABLE IF NOT EXISTS invitations (
     FOREIGN KEY (invited_by) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- User profiles table for extended user information
+CREATE TABLE IF NOT EXISTS profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE NOT NULL,
+    nickname TEXT,
+    weight REAL,
+    cycling_type TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rides_user ON rides (user_id);
 CREATE INDEX IF NOT EXISTS idx_rides_date ON rides (ride_date);
@@ -122,6 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
 CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations (email);
 CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations (status);
 CREATE INDEX IF NOT EXISTS idx_invitations_expires ON invitations (expires_at);
+CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles (user_id);
 
 -- Insert default configuration values
 INSERT OR IGNORE INTO configuration (key, value, value_type, description, category) VALUES

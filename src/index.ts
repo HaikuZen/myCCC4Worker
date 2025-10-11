@@ -737,6 +737,83 @@ app.delete('/api/configuration/:key', requireAuth, requireAdmin, async (c) => {
   }
 })
 
+// ============= PROFILE API ROUTES =============
+
+// Get user profile
+app.get('/api/profile', requireAuth, async (c) => {
+  try {
+    const user = c.get('user') as User
+    const userId = user?.id
+    
+    if (!userId) {
+      return c.json({ error: 'User not authenticated' }, 401)
+    }
+    
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    const profile = await dbService.getProfile(userId)
+    
+    if (!profile) {
+      // Return empty profile if not exists yet
+      return c.json({
+        user_id: userId,
+        nickname: null,
+        weight: null,
+        cycling_type: null
+      })
+    }
+    
+    return c.json(profile)
+  } catch (error) {
+    const log = createLogger('API:Profile:Get')
+    log.error('Error getting profile:', error)
+    return c.json({ error: (error as Error).message }, 500)
+  }
+})
+
+// Update user profile
+app.put('/api/profile', requireAuth, async (c) => {
+  try {
+    const user = c.get('user') as User
+    const userId = user?.id
+    
+    if (!userId) {
+      return c.json({ error: 'User not authenticated' }, 401)
+    }
+    
+    const { nickname, weight, cycling_type } = await c.req.json()
+    
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
+    // Update or create profile
+    const success = await dbService.updateProfile(
+      userId,
+      nickname,
+      weight ? parseFloat(weight) : undefined,
+      cycling_type
+    )
+    
+    if (!success) {
+      return c.json({ error: 'Failed to update profile' }, 500)
+    }
+    
+    // Get updated profile
+    const updatedProfile = await dbService.getProfile(userId)
+    
+    return c.json({
+      success: true,
+      message: 'Profile updated successfully',
+      profile: updatedProfile
+    })
+  } catch (error) {
+    const log = createLogger('API:Profile:Update')
+    log.error('Error updating profile:', error)
+    return c.json({ error: (error as Error).message }, 500)
+  }
+})
+
 // ============= AUTHENTICATION ROUTES =============
 
 // Authentication middleware
