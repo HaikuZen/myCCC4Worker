@@ -76,6 +76,7 @@ interface Analysis {
   }
   elevationenanced?: boolean
   hasWeatherData?: boolean
+  weatherProvider?: string
   weather?: {
     temperature?: number
     humidity?: number
@@ -186,7 +187,7 @@ export class GPXParser {
       metadata.bounds = this.calculateBounds(allPoints) // Use calculated bounds if metadata bounds are missing
     }
     
-    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds, weatherService, metadata.time)
+    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds, weatherService)
     
     logger.debug(`Analysis: ${JSON.stringify(analysis)}`)
     
@@ -736,8 +737,7 @@ export class GPXParser {
     points: TrackPoint[], 
     summary: Summary, 
     boundaries: {minLat: number, maxLat: number, minLon: number, maxLon: number } | undefined,
-    weatherService?: WeatherService,
-    rideDate?: Date
+    weatherService?: WeatherService
   ): Promise<Analysis> {
     let weather = undefined;
     let hasWeatherData = false;
@@ -754,6 +754,8 @@ export class GPXParser {
     if (weatherService && boundaries) {
       try {
         // Determine if we need historical data
+        const rideDate = summary.startTime;
+        logger.debug(`Ride date: ${rideDate ? rideDate.toISOString() : 'unknown'}, Current date: ${new Date().toISOString()}`);
         const isHistorical = rideDate ? this.isHistoricalDate(rideDate) : false;
         
         if (isHistorical && rideDate) {
@@ -815,6 +817,7 @@ export class GPXParser {
       intensityMetrics: this.calculateIntensityMetrics(points),
       weather: weather,
       hasWeatherData: hasWeatherData,
+      weatherProvider: weatherService ? weatherService.getProviderName() : 'none',
       elevationenanced: false, // Placeholder, will be set if elevation data is enhanced
       caloriesBurned: { estimated: 0, method: 'none', breakdown: {} } // Placeholder, will be calculated below
     }

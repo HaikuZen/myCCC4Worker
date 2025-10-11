@@ -65,3 +65,63 @@ GMAIL_USER=your-email@gmail.com
 # For production, set these as secrets:
 #   wrangler secret put GMAIL_PASSWORD
 #   wrangler secret put RESEND_API_KEY (if using Resend)
+# Weather Provider Configuration Examples
+# Copy this file to .dev.vars and fill in your API keys
+
+# ============= WEATHER PROVIDER SELECTION =============
+# Choose which weather provider to use (default: openweathermap)
+# Options: openweathermap, weatherapi, weatherbit, visualcrossing
+WEATHER_PROVIDER=openweathermap
+
+# ============= WEATHER API KEYS =============
+
+# OpenWeatherMap (Required for geocoding, optional for weather)
+# Get your free API key: https://openweathermap.org/api
+# Free tier: 1,000 calls/day
+OPENWEATHERMAP_API_KEY=your_openweathermap_key_here
+
+# Legacy support (if only this is set, uses OpenWeatherMap)
+WEATHER_API_KEY=your_openweathermap_key_here
+
+# WeatherAPI.com
+# Get your free API key: https://www.weatherapi.com/signup.aspx
+# Free tier: 1,000,000 calls/month
+WEATHERAPI_KEY=your_weatherapi_key_here
+
+# Weatherbit.io
+# Get your free API key: https://www.weatherbit.io/account/create
+# Free tier: 500 calls/day
+WEATHERBIT_KEY=your_weatherbit_key_here
+
+# Visual Crossing
+# Get your free API key: https://www.visualcrossing.com/sign-up
+# Free tier: 1,000 records/day
+VISUALCROSSING_KEY=your_visualcrossing_key_here
+
+# ============= USAGE EXAMPLES =============
+
+# Example 1: Use OpenWeatherMap only (legacy)
+# WEATHER_API_KEY=abc123xyz
+
+# Example 2: Use WeatherAPI for weather, OpenWeatherMap for geocoding
+# WEATHER_PROVIDER=weatherapi
+# OPENWEATHERMAP_API_KEY=abc123xyz
+# WEATHERAPI_KEY=def456uvw
+
+# Example 3: Use Weatherbit for weather, OpenWeatherMap for geocoding
+# WEATHER_PROVIDER=weatherbit
+# OPENWEATHERMAP_API_KEY=abc123xyz
+# WEATHERBIT_KEY=ghi789rst
+
+# Example 4: Use Visual Crossing for weather, OpenWeatherMap for geocoding
+# WEATHER_PROVIDER=visualcrossing
+# OPENWEATHERMAP_API_KEY=abc123xyz
+# VISUALCROSSING_KEY=jkl012mno
+
+# ============= NOTES =============
+# - Always keep an OpenWeatherMap key for geocoding (it's free and reliable)
+# - You can have multiple provider keys configured and switch between them
+# - For production, use wrangler secrets instead of .dev.vars:
+#   wrangler secret put OPENWEATHERMAP_API_KEY
+#   wrangler secret put WEATHERAPI_KEY
+#   etc.

@@ -1100,7 +1100,7 @@ export class CyclingDatabase {
       analysisData.analysis.weather?.humidity || null, // humidity
       analysisData.analysis.weather?.temp || null, // temperature
       analysisData.analysis.weather?.pressure || null, // pressure
-      'default', // weather source
+      analysisData.analysis.weatherProvider || 'none', // weather source
       analysisData.analysis.hasWeatherData || false, // has weather data
       false, // elevation enhanced
       analysisData.summary.elevationGain > 0 // has elevation data
