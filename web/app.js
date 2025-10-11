@@ -2524,6 +2524,11 @@ function displayRideAnalysis(data) {
     // Display segments
     displayRideSegments(analysis.segments);
     
+    // Display terrain analysis if available
+    if (analysis.analysis.terrain) {
+        displayTerrainAnalysis(analysis.analysis.terrain);
+    }
+    
     // Create charts
     createRideAnalysisCharts(analysis);
     
@@ -2912,6 +2917,211 @@ function createRidePowerChart(data) {
             }
         }
     });
+}
+
+// Display terrain analysis
+function displayTerrainAnalysis(terrain) {
+    console.log('📊 Displaying terrain analysis:', terrain);
+    
+    const terrainSection = document.getElementById('rideTerrainSection');
+    if (!terrainSection) return;
+    
+    // Show the terrain section
+    terrainSection.style.display = 'block';
+    
+    // Display dominant terrain
+    const dominantType = document.getElementById('terrainDominantType');
+    const dominantIcon = document.getElementById('terrainDominantIcon');
+    
+    dominantType.textContent = terrain.dominantTerrain || 'Unknown';
+    dominantIcon.className = `fas ${getTerrainIcon(terrain.dominantTerrain)} text-2xl text-primary`;
+    
+    // Create terrain pie chart
+    createTerrainPieChart(terrain);
+    
+    // Display terrain distribution bars
+    displayTerrainDistribution(terrain);
+    
+    // Display terrain segments
+    displayTerrainSegments(terrain.segments || []);
+}
+
+// Get icon for terrain type
+function getTerrainIcon(terrainType) {
+    const icons = {
+        'urban': 'fa-city',
+        'suburban': 'fa-home',
+        'rural': 'fa-tree',
+        'forest': 'fa-tree',
+        'mountain': 'fa-mountain',
+        'coastal': 'fa-water',
+        'desert': 'fa-sun',
+        'grassland': 'fa-leaf',
+        'wetland': 'fa-tint',
+        'industrial': 'fa-industry',
+        'park': 'fa-tree',
+        'water': 'fa-water',
+        'unknown': 'fa-question-circle'
+    };
+    return icons[terrainType] || 'fa-map-marked-alt';
+}
+
+// Get color for terrain type
+function getTerrainColor(terrainType) {
+    const colors = {
+        'urban': '#6B7280',
+        'suburban': '#9CA3AF',
+        'rural': '#84CC16',
+        'forest': '#22C55E',
+        'mountain': '#8B5CF6',
+        'coastal': '#3B82F6',
+        'desert': '#F59E0B',
+        'grassland': '#A3E635',
+        'wetland': '#06B6D4',
+        'industrial': '#78716C',
+        'park': '#10B981',
+        'water': '#0EA5E9',
+        'unknown': '#6B7280'
+    };
+    return colors[terrainType] || '#6B7280';
+}
+
+// Create terrain pie chart
+function createTerrainPieChart(terrain) {
+    const ctx = document.getElementById('terrainPieChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if any
+    if (rideAnalysisCharts.terrain) {
+        rideAnalysisCharts.terrain.destroy();
+    }
+    
+    const distribution = terrain.terrainDistribution || {};
+    const labels = Object.keys(distribution).map(key => {
+        return key.charAt(0).toUpperCase() + key.slice(1);
+    });
+    const data = Object.values(distribution);
+    const colors = Object.keys(distribution).map(key => getTerrainColor(key));
+    
+    rideAnalysisCharts.terrain = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed;
+                            const percentage = terrain.terrainPercentages[context.label.toLowerCase()];
+                            return `${label}: ${(value / 1000).toFixed(2)} km (${percentage.toFixed(1)}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Display terrain distribution bars
+function displayTerrainDistribution(terrain) {
+    const container = document.getElementById('terrainDistributionBars');
+    if (!container) return;
+    
+    const percentages = terrain.terrainPercentages || {};
+    const distribution = terrain.terrainDistribution || {};
+    
+    // Sort by percentage descending
+    const sorted = Object.entries(percentages)
+        .sort((a, b) => b[1] - a[1]);
+    
+    container.innerHTML = sorted.map(([terrainType, percentage]) => {
+        const distance = distribution[terrainType] || 0;
+        const color = getTerrainColor(terrainType);
+        const icon = getTerrainIcon(terrainType);
+        const capitalizedType = terrainType.charAt(0).toUpperCase() + terrainType.slice(1);
+        
+        return `
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 w-32">
+                    <i class="fas ${icon} text-sm" style="color: ${color}"></i>
+                    <span class="text-sm font-medium capitalize">${capitalizedType}</span>
+                </div>
+                <div class="flex-1">
+                    <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
+                        <div class="h-full rounded-full flex items-center justify-end pr-2"
+                             style="width: ${percentage}%; background-color: ${color}">
+                            <span class="text-xs font-semibold text-white">${percentage.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+                <span class="text-sm text-base-content/70 w-20 text-right">
+                    ${(distance / 1000).toFixed(2)} km
+                </span>
+            </div>
+        `;
+    }).join('');
+}
+
+// Display terrain segments
+function displayTerrainSegments(segments) {
+    const tbody = document.getElementById('terrainSegmentsList');
+    if (!tbody) return;
+    
+    if (!segments || segments.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-base-content/50">
+                    No terrain segments available
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = segments.map((segment, index) => {
+        const color = getTerrainColor(segment.terrainType);
+        const icon = getTerrainIcon(segment.terrainType);
+        const capitalizedType = segment.terrainType.charAt(0).toUpperCase() + segment.terrainType.slice(1);
+        const confidencePercent = (segment.confidence * 100).toFixed(0);
+        const confidenceColor = segment.confidence > 0.7 ? 'success' : segment.confidence > 0.4 ? 'warning' : 'error';
+        
+        return `
+            <tr>
+                <td>
+                    <div class="flex items-center gap-2">
+                        <i class="fas ${icon}" style="color: ${color}"></i>
+                        <span class="capitalize">${capitalizedType}</span>
+                    </div>
+                </td>
+                <td>${(segment.distance / 1000).toFixed(2)} km</td>
+                <td>
+                    <div class="badge badge-${confidenceColor} badge-sm">
+                        ${confidencePercent}%
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Download GPX file for current ride

@@ -1,6 +1,7 @@
 import { parseString } from 'xml2js'
 import { createLogger } from './logger'
 import { WeatherService } from './weather'
+import { TerrainService, TerrainAnalysis } from './terrain-service'
 const logger = createLogger('GPXParser')
 
 interface TrackPoint {
@@ -85,6 +86,18 @@ interface Analysis {
     conditions?: string
     location?: string
   }
+  terrain?: {
+    dominantTerrain: string
+    terrainDistribution: Record<string, number>
+    terrainPercentages: Record<string, number>
+    segments?: Array<{
+      startIndex: number
+      endIndex: number
+      terrainType: string
+      distance: number
+      confidence: number
+    }>
+  }
 }
 
 interface Segment {
@@ -164,7 +177,7 @@ export class GPXParser {
   /**
    * Extract comprehensive cycling data from parsed GPX
    */
-  async extractCyclingData(gpxData: any, riderWeight: number = 0, weatherService?: WeatherService): Promise<GPXData> {
+  async extractCyclingData(gpxData: any, riderWeight: number = 0, weatherService?: WeatherService, terrainConfig?: any): Promise<GPXData> {
     const tracks = this.extractTracks(gpxData)
     if (tracks.length === 0) {
       throw new Error('No track data found in GPX file')
@@ -187,7 +200,7 @@ export class GPXParser {
       metadata.bounds = this.calculateBounds(allPoints) // Use calculated bounds if metadata bounds are missing
     }
     
-    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds, weatherService)
+    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds, weatherService, terrainConfig)
     
     logger.debug(`Analysis: ${JSON.stringify(analysis)}`)
     
@@ -737,7 +750,8 @@ export class GPXParser {
     points: TrackPoint[], 
     summary: Summary, 
     boundaries: {minLat: number, maxLat: number, minLon: number, maxLon: number } | undefined,
-    weatherService?: WeatherService
+    weatherService?: WeatherService,
+    terrainConfig?: any
   ): Promise<Analysis> {
     let weather = undefined;
     let hasWeatherData = false;
@@ -810,6 +824,56 @@ export class GPXParser {
       hasWeatherData = false;
     }
 
+    // Analyze terrain along the route
+    let terrainAnalysis = undefined;
+    
+    // Check if terrain analysis is enabled
+    const terrainEnabled = terrainConfig?.enabled ?? true;
+    
+    if (terrainEnabled) {
+      try {
+        logger.info('🗺️ Starting terrain analysis');
+        
+        // Use configuration from database or defaults
+        const terrainService = new TerrainService({
+          sampleInterval: terrainConfig?.sampleInterval ?? 30,
+          enableApiCalls: terrainConfig?.enableApiCalls ?? true,
+          apiTimeout: terrainConfig?.apiTimeout ?? 15000,
+          apiDelay: terrainConfig?.apiDelay ?? 2000,
+          batchSize: terrainConfig?.batchSize ?? 3,
+          queryRadius: terrainConfig?.queryRadius ?? 100
+        });
+      
+      const routePoints = points.map(p => ({
+        lat: p.lat,
+        lon: p.lon,
+        elevation: p.elevation
+      }));
+      
+      const terrainResult = await terrainService.analyzeRoute(routePoints);
+      
+      terrainAnalysis = {
+        dominantTerrain: terrainResult.summary.dominantTerrain,
+        terrainDistribution: terrainResult.summary.terrainDistribution,
+        terrainPercentages: terrainResult.summary.terrainPercentages,
+        segments: terrainResult.segments.map(seg => ({
+          startIndex: seg.startIndex,
+          endIndex: seg.endIndex,
+          terrainType: seg.terrainType,
+          distance: seg.distance,
+          confidence: seg.confidence
+        }))
+      };
+      
+        logger.info(`✅ Terrain analysis complete: ${terrainResult.summary.dominantTerrain} (${terrainResult.segments.length} segments)`);
+      } catch (error) {
+        logger.error('Error during terrain analysis:', error);
+        // Continue without terrain data
+      }
+    } else {
+      logger.info('🗺️ Terrain analysis disabled via configuration');
+    }
+
     const analysis: Analysis = {
       speedZones: this.analyzeSpeedZones(points),
       heartRateZones: this.analyzeHeartRateZones(points),
@@ -818,6 +882,7 @@ export class GPXParser {
       weather: weather,
       hasWeatherData: hasWeatherData,
       weatherProvider: weatherService ? weatherService.getProviderName() : 'none',
+      terrain: terrainAnalysis,
       elevationenanced: false, // Placeholder, will be set if elevation data is enhanced
       caloriesBurned: { estimated: 0, method: 'none', breakdown: {} } // Placeholder, will be calculated below
     }

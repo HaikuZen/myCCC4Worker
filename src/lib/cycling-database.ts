@@ -750,6 +750,66 @@ export class CyclingDatabase {
   }
 
   /**
+   * Get terrain analysis configuration
+   */
+  async getTerrainConfig(): Promise<any> {
+    return {
+      enabled: await this.getConfig('terrain_enabled') ?? true,
+      sampleInterval: await this.getConfig('terrain_sample_interval') ?? 30,
+      apiTimeout: await this.getConfig('terrain_api_timeout') ?? 15000,
+      apiDelay: await this.getConfig('terrain_api_delay') ?? 2000,
+      batchSize: await this.getConfig('terrain_batch_size') ?? 3,
+      queryRadius: await this.getConfig('terrain_query_radius') ?? 100,
+      enableApiCalls: await this.getConfig('terrain_enable_api') ?? true
+    };
+  }
+
+  /**
+   * Update terrain analysis configuration
+   */
+  async setTerrainConfig(options: {
+    enabled?: boolean;
+    sampleInterval?: number;
+    apiTimeout?: number;
+    apiDelay?: number;
+    batchSize?: number;
+    queryRadius?: number;
+    enableApiCalls?: boolean;
+  } = {}): Promise<void> {
+    const { enabled, sampleInterval, apiTimeout, apiDelay, batchSize, queryRadius, enableApiCalls } = options;
+    
+    if (enabled !== undefined) {
+      await this.setConfig('terrain_enabled', enabled, 'boolean', 'Enable terrain analysis for rides', 'terrain');
+    }
+    
+    if (sampleInterval !== undefined) {
+      await this.setConfig('terrain_sample_interval', sampleInterval, 'number', 'Analyze every N GPS points', 'terrain');
+    }
+    
+    if (apiTimeout !== undefined) {
+      await this.setConfig('terrain_api_timeout', apiTimeout, 'number', 'API request timeout in milliseconds', 'terrain');
+    }
+    
+    if (apiDelay !== undefined) {
+      await this.setConfig('terrain_api_delay', apiDelay, 'number', 'Delay between API batches in milliseconds', 'terrain');
+    }
+    
+    if (batchSize !== undefined) {
+      await this.setConfig('terrain_batch_size', batchSize, 'number', 'Number of requests per batch', 'terrain');
+    }
+    
+    if (queryRadius !== undefined) {
+      await this.setConfig('terrain_query_radius', queryRadius, 'number', 'Query radius in meters', 'terrain');
+    }
+    
+    if (enableApiCalls !== undefined) {
+      await this.setConfig('terrain_enable_api', enableApiCalls, 'boolean', 'Enable Overpass API calls', 'terrain');
+    }
+    
+    this.log.info('🗺️ Terrain analysis configuration updated');
+  }
+
+  /**
    * Get all configuration as array for API
    */
   async getAllConfiguration(): Promise<any[]> {

@@ -4,6 +4,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 
 ## ✨ What's New in v2.1
 
+- 🗺️ **Terrain Analysis**: Visual terrain classification with OSM data - see urban, rural, mountain, coastal segments and distribution
 - 🌦️ **Multi-Provider Weather Support**: Choose from 4 weather APIs - OpenWeatherMap, WeatherAPI, Weatherbit, or Visual Crossing with visual provider badge
 - 🏷️ **Weather Provider Display**: See which weather service is active with a visual badge next to the weather section title
 - 👤 **User Profiles**: Personalized profiles with nickname, weight, and cycling type preferences
@@ -33,6 +34,13 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 ### Data Analysis & Visualization  
 - 📈 **Rich Data Visualization**: Interactive charts for distance, calories, speed, elevation, and trends
 - 🔬 **Detailed Ride Analysis**: Individual ride breakdowns with elevation profiles, speed curves, and performance metrics
+- 🗺️ **Terrain Analysis**: Visual terrain classification showing urban, rural, mountain, coastal, and forest segments
+  - **Dominant Terrain Display**: See the primary terrain type with icon and label
+  - **Interactive Pie Chart**: Doughnut chart showing terrain distribution with percentages
+  - **Progress Bars**: Visual representation of terrain coverage with distances and percentages
+  - **Segment Table**: Detailed breakdown of terrain segments with confidence levels
+  - **OSM Integration**: Real terrain data from OpenStreetMap via Overpass API with automatic retry logic
+  - **Color-Coded Confidence**: Visual badges (green/yellow/red) indicate data quality
 - 📱 **Responsive Charts**: Chart.js powered visualizations that work on all devices
 - 📋 **Clickable Statistics Table**: Click any ride to view detailed analysis in an interactive modal
 - 🎯 **Performance Trends**: Track improvements over time with comparative analytics
@@ -259,6 +267,7 @@ myCCC/
 │       ├── cycling-database.ts # Legacy database compatibility
 │       ├── auth.ts           # Google OAuth2 authentication service
 │       ├── email-service.ts  # Email service for invitations (Gmail/MailChannels/Resend)
+│       ├── terrain-service.ts # Terrain analysis service using OpenStreetMap/Overpass API
 │       ├── weather.ts        # Multi-provider weather service
 │       ├── weather-providers/ # Weather provider implementations
 │       │   ├── base-provider.ts        # Provider interface and base class
@@ -347,6 +356,12 @@ myCCC/
    - **Speed Analysis**: Speed variations throughout your ride
    - **Performance Metrics**: Comprehensive breakdown of calories, power, and efficiency
    - **Route Segments**: Detailed segment analysis with performance data
+   - **Terrain Analysis**: Visual breakdown of terrain types encountered during the ride
+     - Dominant terrain display with icon
+     - Interactive doughnut chart showing terrain distribution
+     - Horizontal progress bars with percentages and distances
+     - Detailed segment table with terrain types and confidence levels
+     - Real OpenStreetMap data via Overpass API
    - **Environmental Data**: Weather conditions and their impact on performance
 
 4. **User Invitations** (🔒 Admin Only): Control access to the platform
@@ -519,7 +534,7 @@ The Cloudflare Workers application provides several API endpoints:
 ### Data API (🔐 Authentication Required)
 - `GET /api/dashboard` - Complete dashboard data with user-specific statistics, recent rides, chart data, monthly summary, and trends
 - `GET /api/rides?limit={n}` - Recent rides for the authenticated user (default limit: 10)
-- `GET /api/rides/{rideId}/analysis` - Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
+- `GET /api/rides/{rideId}/analysis` - Detailed ride analysis with elevation profiles, speed analysis, terrain analysis, and comprehensive metrics
 - `GET /api/chart-data?startDate={date}&endDate={date}` - Chart data for visualization with optional date filtering (user-specific)
 - `GET /filter-data?startDate={date}&endDate={date}` - Filtered ride data by date range (user-specific)
 - `GET /api/profile` - **NEW**: Get current user's profile (nickname, weight, cycling type)

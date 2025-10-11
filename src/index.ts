@@ -238,7 +238,11 @@ app.post('/upload', requireAuth, async (c) => {
     
     // Initialize weather service with database config
     const weatherService = await createWeatherService(c.env, c.env.DB)
-    const data = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService)
+    
+    // Load terrain configuration from database
+    const terrainConfig = await dbService.getTerrainConfig()
+    
+    const data = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService, terrainConfig)
     log.info('✅ GPX file parsed successfully')
     
     // Do a content-based duplicate check
@@ -304,19 +308,25 @@ app.post('/api/analyze', async (c) => {
     const fileContent = await file.text()
     const xmlData = await gpxParser.parseFromText(fileContent) 
     
+    // Initialize database service for config
+    const dbService = new DatabaseService(c.env.DB)
+    await dbService.initialize()
+    
     // Initialize weather service with database config
     const weatherService = await createWeatherService(c.env, c.env.DB)
-    const data = await gpxParser.extractCyclingData(xmlData, 75, weatherService) // Default rider weight 75kg
+    
+    // Load terrain configuration from database
+    const terrainConfig = await dbService.getTerrainConfig()
+    
+    const data = await gpxParser.extractCyclingData(xmlData, 75, weatherService, terrainConfig) // Default rider weight 75kg
     
     if(!skipSaveToDB) 
       try {
-       // Save to database
-        const dbService = new DatabaseService(c.env.DB)
-        await dbService.initialize()            
+       // Save to database (dbService already initialized above)
         await dbService.saveGPXAnalysis(data, file.name, 75, fileContent)
       } catch (dbError) {        
         log.warn('Failed to save to database:', dbError)
-      }    
+      }
     return c.json(data)
   } catch (error) {
     log.error('Error analyzing GPX file:', error) 
@@ -718,7 +728,11 @@ app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
     
     // Initialize weather service with database config
     const weatherService = await createWeatherService(c.env, c.env.DB)
-    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService)
+    
+    // Load terrain configuration from database
+    const terrainConfig = await dbService.getTerrainConfig()
+    
+    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService, terrainConfig)
     
     // Get basic ride info from database
     const rides = await dbService.getRecentRides(1000)
