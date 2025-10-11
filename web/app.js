@@ -1040,7 +1040,10 @@ async function loadWeatherData(location = null) {
         // Update current location display
         document.getElementById('currentLocation').textContent = selectedLocation.split(',')[0];
         
-        console.log(`✅ Weather data loaded successfully (demo: ${result.demo})`);
+        // Update weather provider badge
+        updateWeatherProviderBadge(result.provider, result.demo);
+        
+        console.log(`✅ Weather data loaded successfully (demo: ${result.demo}, provider: ${result.provider || 'unknown'})`);
         
     } catch (error) {
         console.error('Error loading weather data:', error);
@@ -1135,6 +1138,32 @@ function updateWeatherDisplay(weatherData, isDemo = false, warning = null) {
     
     if (isDemo) {
         console.info('🎭 Using demo weather data');
+    }
+}
+
+// Update weather provider badge display
+function updateWeatherProviderBadge(providerName, isDemo = false) {
+    const badge = document.getElementById('weatherProviderBadge');
+    const nameElement = document.getElementById('weatherProviderName');
+    
+    if (!badge || !nameElement) return;
+    
+    if (providerName) {
+        // Capitalize provider name for display
+        const displayName = providerName.charAt(0).toUpperCase() + providerName.slice(1);
+        nameElement.textContent = displayName;
+        badge.style.display = '';
+        
+        // Add demo indicator if needed
+        if (isDemo) {
+            badge.classList.add('badge-warning');
+            badge.title = 'Using demo data (API key required for live weather)';
+        } else {
+            badge.classList.remove('badge-warning');
+            badge.title = `Weather data provided by ${displayName}`;
+        }
+    } else {
+        badge.style.display = 'none';
     }
 }
 

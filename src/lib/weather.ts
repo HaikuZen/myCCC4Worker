@@ -1,4 +1,17 @@
 import { createLogger } from './logger'
+import {
+  IWeatherProvider,
+  WeatherData,
+  CurrentWeather,
+  HourlyWeather,
+  DailyWeather,
+  OpenWeatherMapProvider,
+  WeatherAPIProvider,
+  WeatherBitProvider,
+  VisualCrossingProvider
+} from './weather-providers'
+
+export { WeatherData, CurrentWeather, HourlyWeather, DailyWeather } from './weather-providers'
 
 export interface LocationData {
   name: string
@@ -8,59 +21,85 @@ export interface LocationData {
   state?: string | null
 }
 
-export interface CurrentWeather {
-  temp: number
-  condition: string
-  humidity: number
-  wind: number
-  pressure: number
-  visibility: number
-  uvIndex: number
-  precipitationChance: number
-}
+export type WeatherProviderType = 'openweathermap' | 'weatherapi' | 'weatherbit' | 'visualcrossing'
 
-export interface HourlyWeather {
-  hour: number
-  temp: number
-  windSpeed: number
-  precipitation: number
-  condition: string
-}
-
-export interface DailyWeather {
-  day: string
-  temp: number
-  condition: string
-  icon: string
-}
-
-export interface WeatherData {
-  current: CurrentWeather
-  tempRange: { min: number; max: number }
-  windRange: { min: number; max: number }
-  hourlyData: HourlyWeather[]
-  dailyForecast: DailyWeather[]
+export interface WeatherServiceConfig {
+  provider: WeatherProviderType
+  apiKeys: {
+    openweathermap?: string
+    weatherapi?: string
+    weatherbit?: string
+    visualcrossing?: string
+  }
+  geocodingApiKey?: string // OpenWeatherMap key for geocoding (default)
 }
 
 export class WeatherService {
-  private apiKey: string | undefined
+  private provider: IWeatherProvider
+  private geocodingApiKey: string | undefined
   private log = createLogger('WeatherService')
+  private config: WeatherServiceConfig
 
-  constructor(apiKey?: string) {
-    this.apiKey = apiKey
+  constructor(config: WeatherServiceConfig | string) {
+    // Backwards compatibility: accept string API key
+    if (typeof config === 'string') {
+      this.config = {
+        provider: 'openweathermap',
+        apiKeys: { openweathermap: config },
+        geocodingApiKey: config
+      }
+    } else {
+      this.config = config
+    }
+
+    // Set geocoding API key (default to OpenWeatherMap)
+    this.geocodingApiKey = this.config.geocodingApiKey || this.config.apiKeys.openweathermap
+
+    // Initialize weather provider
+    this.provider = this.createProvider(this.config.provider, this.config.apiKeys)
+    
+    this.log.info(`WeatherService initialized with provider: ${this.config.provider}`)
+  }
+
+  /**
+   * Factory method to create weather provider instances
+   */
+  private createProvider(providerType: WeatherProviderType, apiKeys: any): IWeatherProvider {
+    const providerKey = apiKeys[providerType]
+    
+    if (!providerKey) {
+      this.log.warn(`No API key configured for ${providerType}, falling back to OpenWeatherMap`)
+      return new OpenWeatherMapProvider({ apiKey: apiKeys.openweathermap || '' })
+    }
+
+    switch (providerType) {
+      case 'openweathermap':
+        return new OpenWeatherMapProvider({ apiKey: providerKey })
+      case 'weatherapi':
+        return new WeatherAPIProvider({ apiKey: providerKey })
+      case 'weatherbit':
+        return new WeatherBitProvider({ apiKey: providerKey })
+      case 'visualcrossing':
+        return new VisualCrossingProvider({ apiKey: providerKey })
+      default:
+        this.log.warn(`Unknown provider ${providerType}, falling back to OpenWeatherMap`)
+        return new OpenWeatherMapProvider({ apiKey: apiKeys.openweathermap || '' })
+    }
   }
 
   /**
    * Geocode a location name to get coordinates
+   * Always uses OpenWeatherMap geocoding API as it's reliable and free
    */
   async geocodeLocation(locationName: string): Promise<{ success: boolean; data?: LocationData; demo?: boolean; error?: string }> {
     if (!locationName || locationName.length < 2) {
       return { success: false, error: 'Location parameter is required and must be at least 2 characters long' }
     }
 
-    //this.log.info(`🌍 Geocoding location: ${locationName}`)
+    // Log geocoding request
+    this.log.info(`🌍 Geocoding location: ${locationName}`)
 
-    if (!this.apiKey) {
+    if (!this.geocodingApiKey) {
       this.log.warn('No weather API key found in environment, using demo mode')
       const demoData = this.getDemoLocationData(locationName)
       if (demoData) {
@@ -71,7 +110,7 @@ export class WeatherService {
     }
 
     try {
-      const apiUrl = `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationName)}&limit=1&appid=${this.apiKey}`
+      const apiUrl = `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationName)}&limit=1&appid=${this.geocodingApiKey}`
       const response = await fetch(apiUrl, {
         signal: AbortSignal.timeout(5000) // 5 second timeout
       })
@@ -123,6 +162,63 @@ export class WeatherService {
   }
 
   /**
+   * Get historical weather data for coordinates on a specific date
+   */
+  async getHistoricalWeather(params: { lat: string; lon: string; date: Date }): Promise<{ success: boolean; data?: WeatherData; demo?: boolean; warning?: string; error?: string }> {
+    const { lat, lon, date } = params
+    
+    this.log.info(`🕐 Getting historical weather data for: ${lat},${lon} on ${date.toISOString()}`)
+    
+    if (!this.provider.isConfigured()) {
+      this.log.warn('Weather provider not configured, cannot fetch historical data')
+      return { success: false, error: 'Weather provider not configured', demo: true }
+    }
+    
+    // Check if provider supports historical weather for this date
+    if (!this.provider.supportsHistoricalDate(date)) {
+      const msg = `Provider ${this.provider.name} does not support historical data for ${date.toISOString()} (max: ${this.provider.historicalDaysSupported} days)`
+      this.log.warn(msg)
+      return { success: false, error: msg, demo: false }
+    }
+    
+    try {
+      const weatherData = await this.provider.getHistoricalWeather(
+        parseFloat(lat),
+        parseFloat(lon),
+        date
+      )
+      
+      this.log.info(`✅ Historical weather data retrieved successfully from ${this.provider.name}`)
+      
+      return { success: true, data: weatherData, demo: false }
+    } catch (error) {
+      this.log.error('Error getting historical weather data:', error)
+      return {
+        success: false,
+        error: `Historical weather API error: ${error.message}`,
+        demo: false
+      }
+    }
+  }
+  
+  /**
+   * Check if historical weather is supported for a given date
+   */
+  supportsHistoricalDate(date: Date): boolean {
+    if (!this.provider.isConfigured()) {
+      return false
+    }
+    return this.provider.supportsHistoricalDate(date)
+  }
+  
+  /**
+   * Get the maximum number of days of historical data supported
+   */
+  getHistoricalDaysSupported(): number {
+    return this.provider.historicalDaysSupported
+  }
+  
+  /**
    * Get weather data for coordinates or location
    */
   async getWeather(params: { lat?: string; lon?: string; location?: string }): Promise<{ success: boolean; data?: WeatherData; demo?: boolean; warning?: string; error?: string }> {
@@ -134,8 +230,8 @@ export class WeatherService {
 
     this.log.info(`🌤️ Getting weather data for: ${location || `${lat},${lon}`}`)
 
-    if (!this.apiKey) {
-      this.log.warn('No weather API key found in environment, using demo weather data')
+    if (!this.provider.isConfigured()) {
+      this.log.warn('Weather provider not configured, using demo weather data')
       const demoData = this.getDemoWeatherData(location || 'London,GB')
       return { success: true, data: demoData, demo: true }
     }
@@ -157,34 +253,13 @@ export class WeatherService {
         throw new Error('Could not determine coordinates for weather data')
       }
 
-      // Get current weather data
-      const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${weatherLat}&lon=${weatherLon}&appid=${this.apiKey}&units=metric`
-      const currentResponse = await fetch(currentWeatherUrl, {
-        signal: AbortSignal.timeout(8000)
-      })
+      // Get weather data from provider
+      const weatherData = await this.provider.getWeather(
+        parseFloat(weatherLat),
+        parseFloat(weatherLon)
+      )
 
-      if (!currentResponse.ok) {
-        throw new Error(`Current weather API error: ${currentResponse.status}`)
-      }
-
-      const currentWeather = await currentResponse.json()
-
-      // Get hourly forecast data
-      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${weatherLat}&lon=${weatherLon}&appid=${this.apiKey}&units=metric`
-      const forecastResponse = await fetch(forecastUrl, {
-        signal: AbortSignal.timeout(8000)
-      })
-
-      if (!forecastResponse.ok) {
-        throw new Error(`Forecast API error: ${forecastResponse.status}`)
-      }
-
-      const forecastWeather = await forecastResponse.json()
-
-      // Process the weather data
-      const weatherData = this.processWeatherData(currentWeather, forecastWeather)
-
-      this.log.info(`✅ Weather data retrieved successfully`)
+      this.log.info(`✅ Weather data retrieved successfully from ${this.provider.name}`)
 
       return { success: true, data: weatherData, demo: false }
     } catch (error) {
@@ -201,117 +276,6 @@ export class WeatherService {
     }
   }
 
-  /**
-   * Process OpenWeatherMap API response into frontend-compatible format
-   */
-  private processWeatherData(currentWeather: any, forecastWeather: any): WeatherData {
-    const current: CurrentWeather = {
-      temp: Math.round(currentWeather.main.temp),
-      condition: currentWeather.weather[0].description.split(' ').map(word =>
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' '),
-      humidity: currentWeather.main.humidity,
-      wind: Math.round(currentWeather.wind.speed * 3.6), // Convert m/s to km/h
-      pressure: currentWeather.main.pressure,
-      visibility: currentWeather.visibility ? Math.round(currentWeather.visibility / 1000) : 10,
-      uvIndex: 6, // UV index not available in current weather API
-      precipitationChance: 0 // Will be calculated from forecast data
-    }
-
-    // Process hourly forecast data (next 24 hours)
-    const hourlyData: HourlyWeather[] = []
-
-    for (let i = 0; i < Math.min(8, forecastWeather.list.length); i++) {
-      const forecast = forecastWeather.list[i]
-      const forecastDate = new Date(forecast.dt * 1000)
-
-      hourlyData.push({
-        hour: forecastDate.getHours(),
-        temp: Math.round(forecast.main.temp),
-        windSpeed: Math.round(forecast.wind.speed * 3.6), // Convert m/s to km/h
-        precipitation: forecast.pop ? Math.round(forecast.pop * 100) : 0, // Probability of precipitation
-        condition: forecast.weather[0].description
-      })
-    }
-
-    // Calculate average precipitation chance for current conditions
-    const avgPrecipitation = hourlyData.reduce((sum, h) => sum + h.precipitation, 0) / hourlyData.length
-    current.precipitationChance = Math.round(avgPrecipitation)
-
-    // Generate temperature and wind ranges based on forecast data
-    const temps = hourlyData.map(h => h.temp)
-    const winds = hourlyData.map(h => h.windSpeed)
-
-    const tempRange = {
-      min: Math.min(current.temp, ...temps) - 2,
-      max: Math.max(current.temp, ...temps) + 2
-    }
-
-    const windRange = {
-      min: Math.max(0, Math.min(current.wind, ...winds) - 5),
-      max: Math.max(current.wind, ...winds) + 5
-    }
-
-    // Generate 7-day forecast from available data
-    const dailyForecast: DailyWeather[] = []
-    const processedDays = new Set()
-
-    for (const forecast of forecastWeather.list) {
-      const forecastDate = new Date(forecast.dt * 1000)
-      const dayKey = forecastDate.toDateString()
-
-      if (!processedDays.has(dayKey) && dailyForecast.length < 7) {
-        processedDays.add(dayKey)
-
-        const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][forecastDate.getDay()]
-        const condition = forecast.weather[0].main
-
-        // Map weather conditions to FontAwesome icons
-        let icon = 'fa-sun'
-        switch (condition.toLowerCase()) {
-          case 'clear':
-            icon = 'fa-sun'
-            break
-          case 'clouds':
-            icon = forecast.weather[0].description.includes('few') ? 'fa-cloud-sun' : 'fa-cloud'
-            break
-          case 'rain':
-          case 'drizzle':
-            icon = 'fa-cloud-rain'
-            break
-          case 'thunderstorm':
-            icon = 'fa-bolt'
-            break
-          case 'snow':
-            icon = 'fa-snowflake'
-            break
-          case 'mist':
-          case 'fog':
-            icon = 'fa-smog'
-            break
-          default:
-            icon = 'fa-cloud'
-        }
-
-        dailyForecast.push({
-          day: dayName,
-          temp: Math.round(forecast.main.temp),
-          condition: forecast.weather[0].description.split(' ').map(word =>
-            word.charAt(0).toUpperCase() + word.slice(1)
-          ).join(' '),
-          icon: icon
-        })
-      }
-    }
-
-    return {
-      current,
-      tempRange,
-      windRange,
-      hourlyData,
-      dailyForecast
-    }
-  }
 
   /**
    * Get demo weather data for testing/fallback
@@ -419,5 +383,12 @@ export class WeatherService {
 
     const key = locationName.toLowerCase().trim()
     return demoLocations[key] || null
+  }
+
+  /**
+   * Get the name of the configured weather provider
+   */
+  getProviderName(): string {
+    return this.provider.name
   }
 }

@@ -2,8 +2,11 @@
 
 A modern, serverless web application for comprehensive cycling analytics and calorie calculation. Built for Cloudflare Workers using Hono.js and D1 database, it provides a fast, globally distributed cycling analysis platform with beautiful visualizations, detailed ride breakdowns, weather integration, and intelligent data management.
 
-## ✨ What's New in v2.0
+## ✨ What's New in v2.1
 
+- 🌦️ **Multi-Provider Weather Support**: Choose from 4 weather APIs - OpenWeatherMap, WeatherAPI, Weatherbit, or Visual Crossing with visual provider badge
+- 🏷️ **Weather Provider Display**: See which weather service is active with a visual badge next to the weather section title
+- 👤 **User Profiles**: Personalized profiles with nickname, weight, and cycling type preferences
 - 🔐 **Invitation-Only Authentication**: Enhanced security with admin-controlled access - only invited users can join
 - ✨ **Automatic Account Creation**: User accounts created automatically on first login with valid invitation
 - 🔐 **Google OAuth2 Authentication**: Secure user authentication with Google accounts and session management
@@ -11,7 +14,7 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 👥 **User-Specific Rides**: Each ride is now associated with the user who uploaded it, ensuring data privacy
 - 🔬 **Detailed Ride Analysis Modal**: Click any ride to view comprehensive analysis with interactive charts
 - 📊 **Enhanced Dashboard**: Improved statistics with monthly summaries and performance trends  
-- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
+- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts from multiple providers
 - 👤 **User Management**: Role-based access with admin privileges for database management
 - 🎨 **Modern UI Redesign**: Beautiful interface with DaisyUI components and smooth animations
 - 📱 **Mobile Responsive**: Optimized experience across all devices
@@ -36,10 +39,16 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - 📊 **Monthly Summaries**: Aggregated statistics by month with visual indicators
 
 ### Weather & Environmental Data
-- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts
-- 🌍 **Smart Geocoding**: Convert location names to coordinates with OpenWeatherMap API
+- 🌦️ **Multi-Provider Weather**: Choose from 4 weather APIs (OpenWeatherMap, WeatherAPI, Weatherbit, Visual Crossing)
+- 🌤️ **Live Weather Integration**: Real-time weather data and 7-day forecasts with UV index
+- 📊 **Real-Time Weather Charts**: Temperature and wind/precipitation charts automatically update with provider data
+- 🏷️ **Provider Display**: Visual badge showing which weather provider is currently active
+- 🌍 **Smart Geocoding**: Convert location names to coordinates (always uses OpenWeatherMap)
 - 🌡️ **Environmental Factors**: Temperature, humidity, wind speed, and UV index tracking
 - 🎨 **Dynamic Weather UI**: Weather-appropriate icons and styling
+- 🔄 **Provider Flexibility**: Switch between providers without code changes
+- 🎯 **Data Normalization**: Consistent data format across all providers
+- ⚡ **Automatic Chart Updates**: Charts refresh automatically with hourly forecast data (24-hour view)
 
 ### Data Management
 - 📁 **GPX Storage & Backup**: Original GPX files preserved in database with download capability
@@ -54,11 +63,12 @@ A modern, serverless web application for comprehensive cycling analytics and cal
 - ✨ **Auto-Account Creation**: User accounts created automatically on first login with valid invitation
 - 🔐 **Google OAuth2**: Secure user authentication with Google accounts and session management
 - ⚡ **Auto-Configuration**: Automatic redirect URI detection - no hardcoded URLs
-- 👤 **User Profiles**: Rich user profiles with avatars, names, and role-based permissions
+- 👤 **User Profiles**: Personalized profiles with nickname, weight (for calorie calculations), and cycling type
+- 🎯 **Profile Customization**: Modal-based profile editing with instant updates
 - 👥 **User Data Isolation**: Each user sees only their own rides and statistics
 - 🛡️ **Session Security**: HttpOnly cookies, CSRF protection, and automatic session cleanup (7-day sessions)
 - 🔒 **Role-Based Access**: Admin privileges for sensitive operations like database management
-- 🚪 **Protected Routes**: Authentication required for uploads and data management
+- 🚺 **Protected Routes**: Authentication required for uploads and data management
 - 🔄 **Session Cleanup**: Automatic expired session removal
 
 ### Privacy & Compliance
@@ -130,15 +140,46 @@ A modern, serverless web application for comprehensive cycling analytics and cal
    
    **✨ Note**: The app automatically detects redirect URIs - no hardcoding needed!
 
-4. **Configure Weather API (Optional):**
-   For live geocoding functionality, set up your OpenWeatherMap API key:
+4. **Configure Weather API (Optional but Recommended):**
+   The app now supports **multiple weather providers**. Choose the one that best fits your needs:
+   
+   **Option 1: OpenWeatherMap** (Default, best for geocoding)
    ```bash
-   # Set as secret (recommended for production)
+   npx wrangler secret put OPENWEATHERMAP_API_KEY
+   # Or legacy:
    npx wrangler secret put WEATHER_API_KEY
-   # Or add to wrangler.jsonc for development (not recommended for production)
    ```
-   Get your free API key from [OpenWeatherMap](https://openweathermap.org/api).
-   Without an API key, the app will use demo geocoding data for common cities.
+   
+   **Option 2: WeatherAPI.com** (Best free tier: 1M calls/month)
+   ```bash
+   npx wrangler secret put WEATHERAPI_KEY
+   # In wrangler.jsonc:
+   WEATHER_PROVIDER=weatherapi
+   ```
+   
+   **Option 3: Weatherbit.io** (Accurate forecasts with UV data)
+   ```bash
+   npx wrangler secret put WEATHERBIT_KEY
+   # In wrangler.jsonc:
+   WEATHER_PROVIDER=weatherbit
+   ```
+   
+   **Option 4: Visual Crossing** (Historical + forecast data)
+   ```bash
+   npx wrangler secret put VISUALCROSSING_KEY
+   # In wrangler.jsonc:
+   WEATHER_PROVIDER=visualcrossing
+   ```
+   
+   **Note**: Always configure OpenWeatherMap for geocoding (it's free and reliable).
+   
+   📖 **Full Documentation**: See [`readmes/WEATHER_PROVIDERS.md`](readmes/WEATHER_PROVIDERS.md) for:
+   - Provider comparison and recommendations
+   - API key setup for each provider
+   - Configuration examples
+   - Migration guide
+   
+   Without any API key, the app uses demo weather data for development.
 
 5. **Configure Email for Invitations (Optional):**
    The application supports **three email providers** for sending invitation emails:
@@ -214,11 +255,17 @@ myCCC/
 │   ├── index.ts              # Main Cloudflare Worker entry point
 │   └── lib/                  # Core libraries
 │       ├── gpx-parser.ts     # GPX file parsing with TypeScript
-│       ├── database-service.ts # D1 database operations
+│       ├── database-service.ts # D1 database operations with profile support
 │       ├── cycling-database.ts # Legacy database compatibility
 │       ├── auth.ts           # Google OAuth2 authentication service
 │       ├── email-service.ts  # Email service for invitations (Gmail/MailChannels/Resend)
-│       ├── weather.ts        # Weather service module
+│       ├── weather.ts        # Multi-provider weather service
+│       ├── weather-providers/ # Weather provider implementations
+│       │   ├── base-provider.ts        # Provider interface and base class
+│       │   ├── openweathermap-provider.ts # OpenWeatherMap implementation
+│       │   ├── weatherapi-provider.ts      # WeatherAPI implementation
+│       │   ├── weatherbit-provider.ts      # Weatherbit implementation
+│       │   └── visualcrossing-provider.ts  # Visual Crossing implementation
 │       └── logger.ts         # Structured logging utility
 ├── web/                       # Static web application files
 │   ├── index.html            # Main page with authentication UI
@@ -237,18 +284,23 @@ myCCC/
 │   ├── 0001_add_email_hash.sql # Email privacy migration
 │   ├── 0002_add_user_id_to_rides.sql # User-ride association
 │   ├── 001_add_invitations.sql # User invitation system
+│   ├── add-profiles-table.sql # User profiles migration
 │   └── README.md             # Migration documentation
 ├── AUTHENTICATION_SETUP.md    # Google OAuth2 setup guide
 ├── PRIVACY_IMPLEMENTATION.md  # Email privacy documentation
 ├── USER_RIDE_ASSOCIATION.md   # User-ride relationship documentation
 ├── GDPR_COOKIE_COMPLIANCE.md  # Cookie consent documentation
 ├── readmes/                   # Documentation files
-│   ├── INVITATION_LOGIN_FLOW.md # Invitation-only authentication system (NEW!)
+│   ├── INVITATION_LOGIN_FLOW.md # Invitation-only authentication system
 │   ├── GMAIL_OAUTH2_QUICKSTART.md # Gmail OAuth 2.0 setup (2 minutes)
 │   ├── EMAIL_README.md        # Email service overview
 │   ├── INVITATION_ACCEPTANCE.md # Invitation technical details
+│   ├── USER_PROFILE_FEATURE.md # User profile feature documentation
+│   ├── WEATHER_PROVIDERS.md # Multi-provider weather system
+│   ├── WEATHER_CHARTS_UPDATE.md # Weather charts auto-update feature
 │   └── ... (other documentation)
 ├── .dev.vars.example          # Environment variables template
+├── .dev.vars.example.weather  # Weather provider configuration examples
 └── package.json               # Dependencies and scripts
 ```
 
@@ -338,6 +390,7 @@ D1 provides a serverless SQLite database that scales automatically and is global
 ### Database Tables
 - `rides` - Core ride data and GPX storage with user associations
 - `users` - User profiles from Google OAuth2
+- `profiles` - Extended user profiles with nickname, weight, and cycling type preferences
 - `sessions` - Secure session management
 - `invitations` - User invitation system with email tokens
 - `calorie_breakdown` - Detailed calorie calculation factors
@@ -353,22 +406,88 @@ See [`USER_RIDE_ASSOCIATION.md`](USER_RIDE_ASSOCIATION.md) for detailed implemen
 
 ## Weather Service
 
-The application includes a modular weather service (`src/lib/weather.ts`) that provides:
+The application features a **multi-provider weather system** with pluggable architecture and **automatic chart updates**:
 
-- **Geocoding**: Convert location names to coordinates using OpenWeatherMap API
-- **Weather Data**: Current conditions and forecasts with structured data
-- **Demo Mode**: Fallback demo data for development without API keys
-- **TypeScript Support**: Fully typed interfaces for all weather data structures
+### Supported Providers
+- **OpenWeatherMap** (Default) - 1,000 calls/day free, always used for geocoding
+- **WeatherAPI.com** - 1,000,000 calls/month free, includes UV index, best hourly data
+- **Weatherbit.io** - 500 calls/day free, accurate forecasts with UV
+- **Visual Crossing** - 1,000 records/day free, historical + forecast data
+
+### Features
+- **Provider Pattern**: Easy to switch providers without code changes
+- **Provider Display**: Visual badge in UI showing which weather provider is active
+- **Geocoding**: Always uses OpenWeatherMap (free and reliable)
+- **Real-Time Charts**: Temperature and wind/precipitation charts auto-update with provider data
+- **24-Hour Forecasts**: Hourly weather data displayed in interactive charts
+- **Data Normalization**: Consistent data format across all providers
+- **Demo Mode**: Fallback demo data for development without API keys (badge shows warning)
+- **TypeScript Support**: Fully typed interfaces for all weather data
 - **Error Handling**: Graceful fallback to demo data on API failures
+- **Backwards Compatible**: Legacy `WEATHER_API_KEY` still works
 
-### Weather API Integration
-The weather service integrates with OpenWeatherMap to provide:
-- Real-time weather conditions
-- 5-day/3-hour forecasts
-- Location geocoding
-- Weather icon mapping
+### Configuration
+```bash
+# Choose your provider (in wrangler.jsonc)
+WEATHER_PROVIDER=weatherapi  # or openweathermap, weatherbit, visualcrossing
 
-Demo data is available for major cities when no API key is configured, making the application fully functional for development and testing.
+# Set API keys as secrets
+wrangler secret put OPENWEATHERMAP_API_KEY  # For geocoding (always recommended)
+wrangler secret put WEATHERAPI_KEY          # If using WeatherAPI
+wrangler secret put WEATHERBIT_KEY          # If using Weatherbit
+wrangler secret put VISUALCROSSING_KEY      # If using Visual Crossing
+```
+
+### Weather Charts
+
+The weather section includes **two interactive charts that automatically update** with real data from your configured provider:
+
+#### 1. Temperature Trend Chart
+- **Display**: Line chart showing 24-hour temperature forecast
+- **Data Source**: `hourlyData[].temp` from weather provider
+- **Update**: Automatically refreshes when weather data is loaded
+- **Granularity**: Hourly data points (providers vary: 3-24 hours native, extrapolated as needed)
+
+#### 2. Wind & Precipitation Chart
+- **Display**: Combination bar + line chart
+- **Wind Speed**: Bar chart (left axis) showing hourly wind speed in km/h
+- **Precipitation**: Line chart (right axis) showing precipitation chance (0-100%)
+- **Data Source**: `hourlyData[].windSpeed` and `hourlyData[].precipitation`
+- **Update**: Syncs with temperature chart automatically
+
+**How It Works**:
+1. User visits weather section → `loadWeatherData()` called
+2. Backend fetches data from configured provider
+3. Provider returns standardized `hourlyData` array
+4. Frontend calls `updateWeatherChartsWithAPIData()` if data exists
+5. Both charts update instantly with real forecast data
+6. If no hourly data → Falls back to generated patterns
+
+**Provider Data Quality**:
+- **WeatherAPI**: ✅ Full 24-hour native hourly data (best)
+- **Visual Crossing**: ✅ Full 24-hour native hourly data
+- **OpenWeatherMap**: ⚡ 8 data points (3-hour intervals) + 16 extrapolated
+- **Weatherbit**: ⚡ Interpolated hourly data from daily forecasts
+
+📊 **Chart Documentation**: See [`readmes/WEATHER_CHARTS_UPDATE.md`](readmes/WEATHER_CHARTS_UPDATE.md) for:
+- Complete implementation details
+- Data flow and normalization
+- Testing and debugging guide
+- Troubleshooting tips
+
+### Provider Selection Guide
+- **Best hourly data** → WeatherAPI (native 24-hour data + 1M calls/month)
+- **High volume apps** → WeatherAPI (1M calls/month)
+- **Need UV index** → WeatherAPI or Weatherbit
+- **Historical data** → Visual Crossing
+- **General purpose** → OpenWeatherMap (default)
+- **Best free tier** → WeatherAPI
+
+📖 **Full Documentation**: See [`readmes/WEATHER_PROVIDERS.md`](readmes/WEATHER_PROVIDERS.md) for:
+- Detailed provider comparison
+- API key setup instructions
+- Configuration examples
+- Migration guide from single provider
 
 ## GPX File Storage
 
@@ -400,11 +519,13 @@ The Cloudflare Workers application provides several API endpoints:
 ### Data API (🔐 Authentication Required)
 - `GET /api/dashboard` - Complete dashboard data with user-specific statistics, recent rides, chart data, monthly summary, and trends
 - `GET /api/rides?limit={n}` - Recent rides for the authenticated user (default limit: 10)
-- `GET /api/rides/{rideId}/analysis` - **NEW**: Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
+- `GET /api/rides/{rideId}/analysis` - Detailed ride analysis with elevation profiles, speed analysis, and comprehensive metrics
 - `GET /api/chart-data?startDate={date}&endDate={date}` - Chart data for visualization with optional date filtering (user-specific)
 - `GET /filter-data?startDate={date}&endDate={date}` - Filtered ride data by date range (user-specific)
-- `GET /api/geocode?location={name}` - Geocode location names to coordinates (requires WEATHER_API_KEY or falls back to demo data)
-- `GET /api/weather?location={name}` or `GET /api/weather?lat={lat}&lon={lon}` - Get current weather and forecast data with dynamic weather icons (requires WEATHER_API_KEY or falls back to demo data)
+- `GET /api/profile` - **NEW**: Get current user's profile (nickname, weight, cycling type)
+- `PUT /api/profile` - **NEW**: Update user profile (creates if doesn't exist)
+- `GET /api/geocode?location={name}` - Geocode location names to coordinates (always uses OpenWeatherMap)
+- `GET /api/weather?location={name}` or `GET /api/weather?lat={lat}&lon={lon}` - Get weather data from configured provider
 
 **Note**: All ride-related endpoints automatically filter data to show only the authenticated user's rides, ensuring data privacy and security.
 
@@ -470,7 +591,11 @@ The Cloudflare Workers application provides several API endpoints:
   - **Gmail** via nodemailer with OAuth 2.0 - Reuses existing Google OAuth credentials
   - **MailChannels** API - Free for Cloudflare Workers
   - **Resend** API - Modern developer email service
-- **APIs**: OpenWeatherMap integration for live weather data
+- **Weather APIs**: Multi-provider support with pluggable architecture:
+  - **OpenWeatherMap** - Default provider, used for geocoding
+  - **WeatherAPI.com** - Best free tier (1M calls/month)
+  - **Weatherbit.io** - Accurate forecasts with UV data
+  - **Visual Crossing** - Historical + forecast data
 
 ### Frontend & UI
 - **Core**: Modern Vanilla JavaScript with ES6+ features
@@ -499,7 +624,12 @@ No hardcoded URLs to update! Just configure your Google OAuth2 credentials and y
 | `GOOGLE_CLIENT_SECRET` | OAuth2 Client Secret | Yes |
 | `JWT_SECRET` | Session signing key | Yes |
 || `REDIRECT_URI` | Explicit callback URL | Optional |
-|| `WEATHER_API_KEY` | OpenWeatherMap API | Optional |
+|| `WEATHER_PROVIDER` | Weather provider (openweathermap/weatherapi/weatherbit/visualcrossing) | Optional |
+|| `OPENWEATHERMAP_API_KEY` | OpenWeatherMap API (for geocoding + weather) | Recommended |
+|| `WEATHERAPI_KEY` | WeatherAPI.com key | Optional |
+|| `WEATHERBIT_KEY` | Weatherbit.io key | Optional |
+|| `VISUALCROSSING_KEY` | Visual Crossing key | Optional |
+|| `WEATHER_API_KEY` | Legacy OpenWeatherMap key (backwards compatible) | Optional |
 || `EMAIL_PROVIDER` | Email provider (gmail/mailchannels/resend) | Optional* |
 || `FROM_EMAIL` | Invitation sender email | Optional* |
 || `FROM_NAME` | Invitation sender name | Optional* |

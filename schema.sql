@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS rides (
     temperature REAL,
     pressure REAL,
     weather_source TEXT,
+    has_weather_data BOOLEAN DEFAULT 0,
     
     -- Metadata
     elevation_enhanced BOOLEAN DEFAULT 0,
@@ -139,9 +140,13 @@ CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles (user_id);
 -- Insert default configuration values
 INSERT OR IGNORE INTO configuration (key, value, value_type, description, category) VALUES
 ('default_rider_weight', '75', 'number', 'Default rider weight in kg', 'rider'),
-('weather_api_key', '', 'string', 'Weather API key from OpenWeatherMap (get free key at openweathermap.org/api)', 'api'),
-('weather_api_timeout', '5000', 'number', 'Weather API timeout in milliseconds', 'api'),
-('weather_api_base_url', 'https://api.openweathermap.org/data/2.5', 'string', 'Weather API base URL', 'api'),
+('weather_provider', 'openweathermap', 'string', 'Weather provider: openweathermap, weatherapi, weatherbit, visualcrossing', 'weather'),
+('weather_api_key', '', 'string', 'Legacy: OpenWeatherMap API key (use for backwards compatibility)', 'weather'),
+('openweathermap_api_key', '', 'string', 'OpenWeatherMap API key (used for geocoding by default)', 'weather'),
+('weatherapi_key', '', 'string', 'WeatherAPI.com API key (1M calls/month free)', 'weather'),
+('weatherbit_key', '', 'string', 'Weatherbit.io API key (500 calls/day free)', 'weather'),
+('visualcrossing_key', '', 'string', 'Visual Crossing API key (1000 records/day free)', 'weather'),
+('weather_api_timeout', '5000', 'number', 'Weather API timeout in milliseconds', 'weather'),
 ('default_location', 'Milan,IT', 'string', 'Default location for weather forecast', 'weather'),
 ('enable_elevation_enhancement', 'true', 'boolean', 'Enable elevation data enhancement', 'processing'),
 ('default_wind_resistance', '0.9', 'number', 'Default wind resistance coefficient', 'physics'),

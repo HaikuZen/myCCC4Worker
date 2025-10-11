@@ -497,10 +497,16 @@
             <div class="card bg-base-100 shadow-xl">
                 <div class="card-body">
                     <div class="flex justify-between items-center mb-4">
-                        <h2 class="card-title text-2xl">
-                            <i class="fas fa-cloud-sun text-primary"></i>
-                            Weather Information
-                        </h2>
+                        <div class="flex items-center gap-3">
+                            <h2 class="card-title text-2xl">
+                                <i class="fas fa-cloud-sun text-primary"></i>
+                                Weather Information
+                            </h2>
+                            <div id="weatherProviderBadge" class="badge badge-outline badge-sm opacity-60" style="display: none;">
+                                <i class="fas fa-cloud text-xs mr-1"></i>
+                                <span id="weatherProviderName"></span>
+                            </div>
+                        </div>
                         <div class="flex items-center gap-2">
                             <label class="label">
                                 <span class="label-text text-sm">Location:</span>

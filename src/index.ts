@@ -12,19 +12,29 @@ import { EmailService } from './lib/email-service'
 type Bindings = {
   DB: D1Database
   ASSETS: { fetch: any }
-  WEATHER_API_KEY?: string
+  
+  // Weather API Keys
+  WEATHER_API_KEY?: string // Legacy: OpenWeatherMap key (for backwards compatibility)
+  WEATHER_PROVIDER?: 'openweathermap' | 'weatherapi' | 'weatherbit' | 'visualcrossing'
+  OPENWEATHERMAP_API_KEY?: string
+  WEATHERAPI_KEY?: string
+  WEATHERBIT_KEY?: string
+  VISUALCROSSING_KEY?: string
+  
+  // Google OAuth
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   JWT_SECRET?: string
   REDIRECT_URI?: string
+  
+  // Email Configuration
   FROM_EMAIL?: string
   FROM_NAME?: string
   APP_URL?: string
   EMAIL_PROVIDER?: 'mailchannels' | 'resend' | 'gmail'
   RESEND_API_KEY?: string
-  // Gmail OAuth 2.0 configuration (reuses existing Google OAuth credentials)
-  GMAIL_USER?: string              // Gmail address to send from (defaults to FROM_EMAIL)
-  GOOGLE_REFRESH_TOKEN?: string    // Optional: OAuth refresh token for Gmail API
+  GMAIL_USER?: string
+  GOOGLE_REFRESH_TOKEN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -37,6 +47,67 @@ app.use('/*', cors())
 
 // Initialize services
 const gpxParser = new GPXParser()
+
+// Helper function to create WeatherService with proper configuration
+// Reads weather_provider from database (if present), API keys always from environment
+async function createWeatherService(env: Bindings, db?: D1Database): Promise<WeatherService> {
+  const log = createLogger('WeatherService:Factory')
+  
+  // API keys always come from environment variables
+  const apiKeys = {
+    openweathermap: env.OPENWEATHERMAP_API_KEY || env.WEATHER_API_KEY,
+    weatherapi: env.WEATHERAPI_KEY,
+    weatherbit: env.WEATHERBIT_KEY,
+    visualcrossing: env.VISUALCROSSING_KEY
+  }
+  
+  // Provider selection priority:
+  // 1. Database configuration (weather_provider key)
+  // 2. Environment variable (WEATHER_PROVIDER)
+  // 3. Default to 'openweathermap'
+  let provider: string = env.WEATHER_PROVIDER || 'openweathermap'
+  
+  // Try to get provider from database configuration if available
+  if (db) {
+    try {     
+      const dbService = new DatabaseService(db)
+      await dbService.initialize()
+      
+      // Get weather provider from database config
+      const providerConfig = await dbService.getConfig('weather_provider')      
+      if (providerConfig) {
+        const dbProvider = providerConfig.toLowerCase().trim()        
+        // Validate provider is one of the supported types
+        const validProviders = ['openweathermap', 'weatherapi', 'weatherbit', 'visualcrossing']
+        if (validProviders.includes(dbProvider)) {
+          provider = dbProvider
+          log.info(`Using weather provider from database: ${provider}`)
+        } else {
+          log.warn(`Invalid provider in database: ${dbProvider}, using ${provider}`)
+        }
+      }
+    } catch (error) {
+      log.warn('Could not read weather provider from database, using environment/default:', error)
+    }
+  }
+  
+  // Use OpenWeatherMap key for geocoding (it's free and reliable)
+  const geocodingApiKey = apiKeys.openweathermap
+  
+  // Log selected configuration
+  log.info(`Weather service configured with provider: ${provider}`)
+  
+  // Backwards compatibility: if only WEATHER_API_KEY is provided, use simple constructor
+  if (env.WEATHER_API_KEY && !apiKeys.openweathermap) {
+    return new WeatherService(env.WEATHER_API_KEY)
+  }
+  
+  return new WeatherService({
+    provider: provider as any,
+    apiKeys,
+    geocodingApiKey
+  })
+}
 
 // Serve static files from the web directory
 app.get('/', serveStatic({ path: './index.html' }))
@@ -164,7 +235,10 @@ app.post('/upload', requireAuth, async (c) => {
     // Parse the GPX file from text content
     log.info('📋 Parsing GPX file:', fileName)
     const xmlData = await gpxParser.parseFromText(fileContent)
-    const data = await gpxParser.extractCyclingData(xmlData, riderWeight)
+    
+    // Initialize weather service with database config
+    const weatherService = await createWeatherService(c.env, c.env.DB)
+    const data = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService)
     log.info('✅ GPX file parsed successfully')
     
     // Do a content-based duplicate check
@@ -230,7 +304,9 @@ app.post('/api/analyze', async (c) => {
     const fileContent = await file.text()
     const xmlData = await gpxParser.parseFromText(fileContent) 
     
-    const data = await gpxParser.extractCyclingData(xmlData, 75) // Default rider weight 75kg
+    // Initialize weather service with database config
+    const weatherService = await createWeatherService(c.env, c.env.DB)
+    const data = await gpxParser.extractCyclingData(xmlData, 75, weatherService) // Default rider weight 75kg
     
     if(!skipSaveToDB) 
       try {
@@ -530,8 +606,8 @@ app.get('/api/geocode', async (c) => {
     const log = createLogger('API:Geocode')
     //log.info(`🌍 Geocoding location: ${locationName}`)
     
-    // Initialize weather service with API key
-    const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
+    // Initialize weather service with database config
+    const weatherService = await createWeatherService(c.env, c.env.DB)
     
     // Use the weather service to geocode the location
     const result = await weatherService.geocodeLocation(locationName)
@@ -562,8 +638,8 @@ app.get('/api/weather', async (c) => {
     const log = createLogger('API:Weather')
     //log.info(`🌤️ Getting weather data for: ${location || `${lat},${lon}`}`)
     
-    // Initialize weather service with API key
-    const weatherService = new WeatherService(c.env.WEATHER_API_KEY)
+    // Initialize weather service with database config
+    const weatherService = await createWeatherService(c.env, c.env.DB)
     
     // Use the weather service to get weather data
     const result = await weatherService.getWeather({ lat, lon, location })
@@ -572,7 +648,9 @@ app.get('/api/weather', async (c) => {
       return c.json({ error: result.error }, 400)
     }
     
-    return c.json(result)
+    // Add provider information to the response
+    const provider = weatherService.getProviderName()
+    return c.json({ ...result, provider })
   } catch (error) {
     const log = createLogger('API:Weather')
     log.error('Error getting weather data:', error)
@@ -637,7 +715,10 @@ app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
     const gpxParser = new GPXParser()
     const xmlData = await gpxParser.parseFromText(gpxData)
     const riderWeight = await dbService.getRiderWeight()
-    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight)
+    
+    // Initialize weather service with database config
+    const weatherService = await createWeatherService(c.env, c.env.DB)
+    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService)
     
     // Get basic ride info from database
     const rides = await dbService.getRecentRides(1000)

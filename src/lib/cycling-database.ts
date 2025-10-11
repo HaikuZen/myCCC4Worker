@@ -1070,9 +1070,9 @@ export class CyclingDatabase {
         wind_adjustment, environmental_adjustment, base_met,
         calories_per_km, calories_per_hour,
         wind_speed, wind_direction, humidity, temperature,
-        pressure, weather_source,
+        pressure, weather_source, has_weather_data,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const rideData = [
@@ -1095,12 +1095,13 @@ export class CyclingDatabase {
       0, // base MET
       Math.round(analysisData.analysis.caloriesBurned.estimated / analysisData.summary.distance),
       Math.round(analysisData.analysis.caloriesBurned.estimated / (analysisData.summary.totalTime / 3600)),
-      analysisData.analysis.weather.wind, // wind speed
-      0, // wind direction
-      analysisData.analysis.weather.humidity, // humidity
-      analysisData.analysis.weather.temp, // temperature
-      analysisData.analysis.weather.pressure, // pressure
+      analysisData.analysis.weather?.wind || null, // wind speed
+      analysisData.analysis.weather?.windDirection || 0, // wind direction
+      analysisData.analysis.weather?.humidity || null, // humidity
+      analysisData.analysis.weather?.temp || null, // temperature
+      analysisData.analysis.weather?.pressure || null, // pressure
       'default', // weather source
+      analysisData.analysis.hasWeatherData || false, // has weather data
       false, // elevation enhanced
       analysisData.summary.elevationGain > 0 // has elevation data
     ];

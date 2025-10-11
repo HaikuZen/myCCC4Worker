@@ -75,6 +75,7 @@ interface Analysis {
     trainingStressScore?: number
   }
   elevationenanced?: boolean
+  hasWeatherData?: boolean
   weather?: {
     temperature?: number
     humidity?: number
@@ -162,7 +163,7 @@ export class GPXParser {
   /**
    * Extract comprehensive cycling data from parsed GPX
    */
-  async extractCyclingData(gpxData: any, riderWeight: number = 0): GPXData {
+  async extractCyclingData(gpxData: any, riderWeight: number = 0, weatherService?: WeatherService): Promise<GPXData> {
     const tracks = this.extractTracks(gpxData)
     if (tracks.length === 0) {
       throw new Error('No track data found in GPX file')
@@ -185,7 +186,7 @@ export class GPXParser {
       metadata.bounds = this.calculateBounds(allPoints) // Use calculated bounds if metadata bounds are missing
     }
     
-    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds) // TODO: review from *.js
+    const analysis = await this.performDetailedAnalysis(allPoints, summary, metadata.bounds, weatherService, metadata.time)
     
     logger.debug(`Analysis: ${JSON.stringify(analysis)}`)
     
@@ -731,32 +732,80 @@ export class GPXParser {
   /**
    * Perform detailed analysis of the ride data
    */
-  private async performDetailedAnalysis(points: TrackPoint[], summary: Summary, 
-        boundaries: {minLat: number, maxLat: number, minLon: number, maxLon: number } | undefined): Promise<Analysis> {
-
-    const env = (typeof process !== 'undefined' && process.env) ? process.env : {} as any;
+  private async performDetailedAnalysis(
+    points: TrackPoint[], 
+    summary: Summary, 
+    boundaries: {minLat: number, maxLat: number, minLon: number, maxLon: number } | undefined,
+    weatherService?: WeatherService,
+    rideDate?: Date
+  ): Promise<Analysis> {
+    let weather = undefined;
+    let hasWeatherData = false;
     
+    // Calculate ride location from boundaries
     let lat = 0, lon = 0, location = '';
     if (boundaries) {
       lat = (boundaries.minLat + boundaries.maxLat) / 2;
       lon = (boundaries.minLon + boundaries.maxLon) / 2;
       location = `(${lat.toFixed(4)}, ${lon.toFixed(4)})`;
-    } 
-    let weather = undefined;
-    // Fetch weather data if API key is provided and location is valid
-    if (env.WEATHER_API_KEY) {
-      logger.debug('Fetching weather data for location ' + location+ ' with API key ' + (env.WEATHER_API_KEY.length > 4 ? env.WEATHER_API_KEY.substring(0,4)+'...' : env.WEATHER_API_KEY)); 
-      const weatherService = new WeatherService(env.WEATHER_API_KEY)        
-      // Use the weather service to get weather data
-      const weatherResult = await weatherService.getWeather({ lat: lat.toString(), lon: lon.toString(), location })
+    }
     
-      if(weatherResult.success && weatherResult.data) {
-        weather = weatherResult.data.current;
-        logger.debug(`Weather at ${location}: ${JSON.stringify(weather)}`);
-      }
+    // Fetch weather data if weatherService is provided and location is valid
+    if (weatherService && boundaries) {
+      try {
+        // Determine if we need historical data
+        const isHistorical = rideDate ? this.isHistoricalDate(rideDate) : false;
         
-      else
-        logger.debug(`No weather data available for ${location}`);
+        if (isHistorical && rideDate) {
+          // Check if provider supports historical data for this date
+          if (weatherService.supportsHistoricalDate(rideDate)) {
+            logger.info(`Fetching historical weather data for ${location} on ${rideDate.toISOString()}`);
+            
+            const weatherResult = await weatherService.getHistoricalWeather({
+              lat: lat.toString(),
+              lon: lon.toString(),
+              date: rideDate
+            });
+            
+            if (weatherResult.success && weatherResult.data) {
+              weather = weatherResult.data.current;
+              hasWeatherData = true;
+              logger.info(`Historical weather at ${location}: ${JSON.stringify(weather)}`);
+            } else {
+              logger.warn(`Historical weather not available: ${weatherResult.error || 'Unknown error'}`);
+              hasWeatherData = false;
+            }
+          } else {
+            const maxDays = weatherService.getHistoricalDaysSupported();
+            logger.info(`Ride date is historical (${rideDate.toISOString()}), but provider only supports ${maxDays} days of history`);
+            hasWeatherData = false;
+          }
+        } else {
+          logger.debug(`Fetching current weather data for location ${location}`);
+          
+          // Use the weather service to get current weather data
+          const weatherResult = await weatherService.getWeather({ 
+            lat: lat.toString(), 
+            lon: lon.toString(), 
+            location 
+          });
+        
+          if (weatherResult.success && weatherResult.data) {
+            weather = weatherResult.data.current;
+            hasWeatherData = true;
+            logger.debug(`Weather at ${location}: ${JSON.stringify(weather)}`);
+          } else {
+            logger.debug(`No weather data available for ${location}`);
+            hasWeatherData = false;
+          }
+        }
+      } catch (error) {
+        logger.error('Error fetching weather data:', error);
+        hasWeatherData = false;
+      }
+    } else {
+      logger.debug('No weather service provided or invalid location, skipping weather fetch');
+      hasWeatherData = false;
     }
 
     const analysis: Analysis = {
@@ -765,6 +814,7 @@ export class GPXParser {
       powerZones: this.analyzePowerZones(points),
       intensityMetrics: this.calculateIntensityMetrics(points),
       weather: weather,
+      hasWeatherData: hasWeatherData,
       elevationenanced: false, // Placeholder, will be set if elevation data is enhanced
       caloriesBurned: { estimated: 0, method: 'none', breakdown: {} } // Placeholder, will be calculated below
     }
@@ -1218,5 +1268,19 @@ export class GPXParser {
    */
   private toRadians(degrees) {
       return degrees * (Math.PI / 180);
-  }   
+  }
+  
+  /**
+   * Check if a given date is historical (not today)
+   * Returns true if the date is before today (start of day)
+   */
+  private isHistoricalDate(date: Date): boolean {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    
+    const rideDate = new Date(date);
+    rideDate.setHours(0, 0, 0, 0); // Start of ride date
+    
+    return rideDate < today;
+  }
 }
