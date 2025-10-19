@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS rides (
     average_speed REAL,
     start_latitude REAL,
     start_longitude REAL,
+    end_latitude REAL,
+    end_longitude REAL,
+    terrain_analysis TEXT,
     
     -- Calorie calculation results
     total_calories INTEGER NOT NULL,
@@ -149,6 +152,10 @@ INSERT OR IGNORE INTO configuration (key, value, value_type, description, catego
 ('weather_api_timeout', '5000', 'number', 'Weather API timeout in milliseconds', 'weather'),
 ('default_location', 'Milan,IT', 'string', 'Default location for weather forecast', 'weather'),
 ('terrain_enabled', 'true', 'boolean', 'Enable terrain analysis for rides', 'terrain'),
+('overpass_api_url', 'https://overpass-api.de/api/interpreter', 'string', 'Overpass API URL for terrain data', 'terrain'),
+('overpass_api_url_secondary', 'https://overpass.kumi.systems/api/interpreter', 'string', 'Overpass API URL for terrain data', 'terrain'),
+('terrain_cache_ttl', '86400', 'number', 'Terrain data cache TTL in seconds', 'terrain'),
+('terrain_max_retries', '3', 'number', 'Maximum retries for terrain API calls', 'terrain'),
 ('terrain_sample_interval', '30', 'number', 'Analyze every N GPS points', 'terrain'),
 ('terrain_api_timeout', '15000', 'number', 'API request timeout in milliseconds', 'terrain'),
 ('terrain_api_delay', '2000', 'number', 'Delay between API batches in milliseconds', 'terrain'),

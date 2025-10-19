@@ -100,7 +100,9 @@ interface CalorieBreakdownRow {
   created_at?: string;
 }
 
+import { logger } from 'hono/logger';
 import { createLogger } from './logger';
+import { TerrainAnalysis } from './terrain-service';
 
 // D1Database is a global type in Cloudflare Workers environment
 declare global {
@@ -157,6 +159,12 @@ export interface DuplicateCheckResult {
   ride_date: string;
   distance?: number;
   duration?: number;
+}
+
+export interface GpxDataResult { 
+  gpx_filename: string;
+  gpx_data: string ;  
+  terrain_analysis?: TerrainAnalysis | null;
 }
 
 export class CyclingDatabase {
@@ -754,6 +762,10 @@ export class CyclingDatabase {
    */
   async getTerrainConfig(): Promise<any> {
     return {
+      overpassApiUrl: await this.getConfig('overpass_api_url'),
+      overpassApiUrlSecondary: await this.getConfig('overpass_api_url_secondary'),
+      cacheTtl: await this.getConfig('terrain_cache_ttl') ?? 86400, // 1 day
+      maxRetries: await this.getConfig('terrain_max_retries') ?? 3,
       enabled: await this.getConfig('terrain_enabled') ?? true,
       sampleInterval: await this.getConfig('terrain_sample_interval') ?? 30,
       apiTimeout: await this.getConfig('terrain_api_timeout') ?? 15000,
@@ -1125,16 +1137,19 @@ export class CyclingDatabase {
       INSERT INTO rides (
         user_id, gpx_filename, gpx_data, rider_weight, ride_date,
         distance, duration, elevation_gain, average_speed,
-        start_latitude, start_longitude,
+        start_latitude, start_longitude, end_latitude, end_longitude, terrain_analysis,
         total_calories, base_calories, elevation_calories,
         wind_adjustment, environmental_adjustment, base_met,
         calories_per_km, calories_per_hour,
         wind_speed, wind_direction, humidity, temperature,
         pressure, weather_source, has_weather_data,
         elevation_enhanced, has_elevation_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-
+    
+    this.log.debug('====================================================');
+    this.log.debug('Saving GPX analysis data:', analysisData.analysis);
+    this.log.debug('====================================================');
     const rideData = [
       userId,
       gpxFilename,
@@ -1147,6 +1162,9 @@ export class CyclingDatabase {
       analysisData.summary.avgSpeed,
       analysisData.points[0]?.lat || 0,
       analysisData.points[0]?.lon || 0,
+      analysisData.points[analysisData.points.length - 1]?.lat || 0,
+      analysisData.points[analysisData.points.length - 1]?.lon || 0,
+      analysisData.analysis.terrain ? JSON.stringify(analysisData.analysis.terrain) : null,
       analysisData.analysis.caloriesBurned.estimated,
       analysisData.analysis.caloriesBurned.breakdown.base || 0,
       analysisData.analysis.caloriesBurned.breakdown.elevation || 0,
@@ -1473,34 +1491,46 @@ export class CyclingDatabase {
   /**
    * Get GPX file content by ride ID
    */
-  async getGpxData(rideId: number): Promise<string | null> {
+  async getGpxData(rideId: number): Promise<GpxDataResult | null> {
     if (!this.isInitialized) await this.initialize()
-    
+    let gpx_data: string | null = null
+    const gpxDataResult: GpxDataResult = { gpx_data: null, terrain_analysis: null }
+    this.log.debug('Fetching GPX data for ride ID:', rideId)
     try {
-      const query = 'SELECT gpx_data FROM rides WHERE id = ?'
-      const result = await this.db.prepare(query).bind(rideId).first<{ gpx_data: any }>()
-      
+      const query = 'SELECT gpx_filename, gpx_data, terrain_analysis FROM rides WHERE id = ?'
+      const result = await this.db.prepare(query).bind(rideId).first<{ gpx_filename: string, gpx_data: any, terrain_analysis: string }>()
+      this.log.debug('Raw GPX data from DB:', result ? (result.gpx_data ? `Data length: ${result.gpx_data.length}` : 'No data') : 'No result')
       if (result && result.gpx_data) {        
         // Handle different data types that might be returned from the database
         if (typeof result.gpx_data === 'string') {
           // Already a string, return as-is
-          return result.gpx_data
+          gpx_data = result.gpx_data
         } else if (result.gpx_data instanceof Uint8Array) {
           // Uint8Array, decode to string
-          return new TextDecoder().decode(result.gpx_data)
+          gpx_data = new TextDecoder().decode(result.gpx_data)
         } else if (Array.isArray(result.gpx_data)) {
           // Array of bytes, convert to Uint8Array first
-          return new TextDecoder().decode(new Uint8Array(result.gpx_data))
+          gpx_data = new TextDecoder().decode(new Uint8Array(result.gpx_data))
         } else if (result.gpx_data instanceof ArrayBuffer) {
           // ArrayBuffer, convert to Uint8Array first
-          return new TextDecoder().decode(new Uint8Array(result.gpx_data))
+          gpx_data = new TextDecoder().decode(new Uint8Array(result.gpx_data))
         } else {
           this.log.error('Unknown GPX data type:', typeof result.gpx_data, result.gpx_data)
           return null
         }
+        gpxDataResult.gpx_data = gpx_data
+        gpxDataResult.gpx_filename = result.gpx_filename
+        if (result.terrain_analysis) {
+          try {
+            gpxDataResult.terrain_analysis = JSON.parse(result.terrain_analysis)
+          } catch (e) {
+            this.log.error('Error parsing terrain analysis JSON:', e)
+            gpxDataResult.terrain_analysis = null
+          }
+        }
       }
       
-      return null
+      return gpxDataResult
     } catch (error) {
       this.log.error('Error getting GPX data:', error)
       throw error

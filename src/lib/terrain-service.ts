@@ -64,13 +64,42 @@ interface RoutePoint {
   elevation?: number
 }
 
+interface OverpassAPIResponse {
+  elements: OSMElement[];
+  version: number;
+  generator: string;
+}
+
+interface OSMTags {
+    [key: string]: string;
+}
+
+interface OSMElement {
+    type: string;
+    bounds?: {minlat: number; minlon: number; maxlat: number; maxlon: number;};
+    nodes?: number[];    
+    tags: OSMTags;
+    // Add other OSM element properties as needed
+}
+
+interface OSMResponse {
+    data: OSMElement[];
+}
+
 /**
  * Configuration for terrain analysis
  */
 export interface TerrainServiceConfig {
   // OpenStreetMap Overpass API (free, no key required)
   overpassApiUrl?: string
-  
+  overpassApiUrlSecondary?: string
+
+  // Cache TTL in seconds (default: 86400 = 1 day)
+  cacheTtl?: number; 
+
+  // Max retries for API calls (default: 3)  
+  maxRetries?: number; 
+
   // OpenTopoData API (free, no key required)
   openTopoDataUrl?: string
   
@@ -103,6 +132,8 @@ export class TerrainService {
   constructor(config: TerrainServiceConfig = {}) {
     this.config = {
       overpassApiUrl: config.overpassApiUrl || 'https://overpass-api.de/api/interpreter',
+      overpassApiUrlSecondary: config.overpassApiUrlSecondary || 'https://overpass.kumi.systems/api/interpreter',
+      maxRetries: config.maxRetries || 3,
       openTopoDataUrl: config.openTopoDataUrl || 'https://api.opentopodata.org/v1',
       sampleInterval: config.sampleInterval || 10,
       enableApiCalls: config.enableApiCalls !== false,
@@ -121,15 +152,16 @@ export class TerrainService {
       return this.getEmptyAnalysis()
     }
 
+    this.log.debug(`Point 0 ${JSON.stringify(points[0])} points`)
     this.log.info(`🗺️ Analyzing terrain for route with ${points.length} points`)
 
     // Sample points to reduce API calls
     const sampledPoints = this.samplePoints(points, this.config.sampleInterval!)
-    this.log.info(`📍 Sampled ${sampledPoints.length} points for terrain analysis`)
+    this.log.info(`📍 Sampled ${sampledPoints.length} points over ${points.length} for terrain analysis`)
 
     // Analyze terrain at sampled points
     const terrainSegments: TerrainSegment[] = []
-    
+          
     if (this.config.enableApiCalls) {
       try {
         // Batch process points in groups to avoid overwhelming APIs
@@ -137,32 +169,11 @@ export class TerrainService {
         for (let i = 0; i < sampledPoints.length; i += batchSize) {
           const batch = sampledPoints.slice(i, Math.min(i + batchSize, sampledPoints.length))
           
-          // Analyze this batch
-          const batchResults = await Promise.all(
-            batch.map(point => this.analyzePointTerrain(point))
-          )
-          
-          // Create segments from batch results
-          batchResults.forEach((terrain, idx) => {
-            const pointIdx = i + idx
-            const startIdx = pointIdx * this.config.sampleInterval!
-            const endIdx = Math.min(
-              (pointIdx + 1) * this.config.sampleInterval!,
-              points.length - 1
-            )
-            
-            const segment: TerrainSegment = {
-              startIndex: startIdx,
-              endIndex: endIdx,
-              distance: this.calculateSegmentDistance(points, startIdx, endIdx),
-              terrainType: terrain.type,
-              elevation: batch[idx].elevation || 0,
-              confidence: terrain.confidence
-            }
-            
-            terrainSegments.push(segment)
-          })
-          
+          // Analyze this batch      
+         logger.debug(`Processing batch from index ${i} to ${i + batch.length - 1}`)
+         const segments = await this.analyzeBatchTerrain(batch, i, points.length)
+         //logger.debug(`Batch segments: ${JSON.stringify(segments)}`)
+         terrainSegments.push(...segments)
           // Rate limiting - wait between batches
           if (i + batchSize < sampledPoints.length) {
             await this.sleep(this.config.apiDelay!) // Configurable delay between batches
@@ -196,37 +207,58 @@ export class TerrainService {
     }
   }
 
-  /**
-   * Analyze terrain type at a specific point using various APIs
-   */
-  private async analyzePointTerrain(point: RoutePoint): Promise<{ type: TerrainType; confidence: number }> {
+  private async analyzeBatchTerrain(points: RoutePoint[], i: number, totalPoints: number): Promise<TerrainSegment[]> {
+    const results: TerrainSegment[] = [];
+    const apiToCall = [this.config.overpassApiUrl!, this.config.overpassApiUrlSecondary!];
+    //logger.debug(`API ${apiToCall}  call  ${i} ${apiToCall[i%2]}`);
+    const osmData: OSMResponse | null = await this.queryOverpassAPIWithRetry(points, apiToCall[i/this.config.batchSize!%2], this.config.maxRetries!);
+    //logger.debug(`OSM batch data: ${JSON.stringify(osmData)}`);
     try {
-      // Try OpenStreetMap Overpass API for land use data with retry
-      
-      //logger.debug(`Querying Overpass API for point (${point.lat}, ${point.lon})`)
-      const osmData = await this.queryOverpassAPIWithRetry(point, 0)
-      
-      if (osmData) {
-        return osmData
-      }
-
-      // Fallback to elevation-based classification
-      return this.classifyByElevation(point)
+      // Create segments from batch results
+      osmData?.data.forEach((element, idx) => {
+        if(idx >= points.length) return; // Safety check
+        const pointIdx = i + idx
+        const startIdx = pointIdx * this.config.sampleInterval!
+        const endIdx = Math.min(
+          (pointIdx + 1) * this.config.sampleInterval!,
+            totalPoints - 1
+          )
+        
+          //logger.debug(`Point index ${pointIdx}=${JSON.stringify(points[idx])} from index ${idx}`);  
+        
+        // Analyze tags to determine terrain type            
+        const terrainType = this.classifyFromOSMTags(element.tags)
+        const distance = this.calculateDistance(points[idx], points[idx+1] || points[idx]);            
+        
+        //logger.debug(`classified as ${terrainType} over distance ${distance}m `);  
+        
+        const segment: TerrainSegment = {
+          startIndex: startIdx,
+          endIndex: endIdx,
+          distance: distance,
+          terrainType: terrainType,
+          elevation: points[idx].elevation || 0,
+          confidence: 0.8
+        }
+            
+        results.push(segment)
+      })      
     } catch (error) {
-      this.log.debug(`Error analyzing point (${point.lat}, ${point.lon}):`, error)
-      return { type: 'unknown', confidence: 0.3 }
-    }
+      this.log.error('Error creating segments from batch result:', error)      
+    } 
+   
+    return results;
   }
 
   /**
    * Query Overpass API with retry logic and exponential backoff
    */
-  private async queryOverpassAPIWithRetry(point: RoutePoint, maxRetries: number): Promise<{ type: TerrainType; confidence: number } | null> {
+  private async queryOverpassAPIWithRetry(points: RoutePoint[], apiToCall:string, maxRetries: number): Promise<OSMResponse | null> {
     let lastError: any = null
-    
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const result = await this.queryOverpassAPI(point)
+        const result = await this.queryOverpassAPIBbox(points, apiToCall)
         if (result) return result
         
         // If we got no result but no error, don't retry
@@ -252,52 +284,53 @@ export class TerrainService {
   /**
    * Query OpenStreetMap Overpass API for land use and natural features
    */
-  private async queryOverpassAPI(point: RoutePoint): Promise<{ type: TerrainType; confidence: number } | null> {
+  private async queryOverpassAPIBbox(points: RoutePoint[], apiToCall: string): Promise<OSMResponse | null> {
     try {
       // Query for surrounding area with configurable radius
       const radius = this.config.queryRadius!
-      const serverTimeout = Math.floor((this.config.apiTimeout! - 2000) / 1000) // Server timeout slightly less than client
-      
-      const query = `
-        [out:json][timeout:${serverTimeout}];
-        (
-          way(around:${radius},${point.lat},${point.lon})["landuse"];
+      const serverTimeout = Math.floor((this.config.apiTimeout! - 2000)) // Server timeout slightly less than client
+      const results: OSMResponse = { data: [] };
+      let query = `
+        [bbox:${points[0].lat},${points[0].lon},${points[points.length - 1].lat},${points[points.length - 1].lon}]
+        [out:json][timeout:${serverTimeout}]; (`
+        points.forEach(point => {
+          query += `way(around:${radius},${point.lat},${point.lon})["landuse"];
           way(around:${radius},${point.lat},${point.lon})["natural"];
           way(around:${radius},${point.lat},${point.lon})["leisure"];
           way(around:${radius},${point.lat},${point.lon})["place"];
-        );
-        out tags;
-      `
-      //logger.debug(`Overpass API query: ${query.trim()}`)
+          way(around:${radius},${point.lat},${point.lon})["highway"];
+          way(around:${radius},${point.lat},${point.lon})["surface"];`          
+        })
+        query +=`); out geom;`
 
-      // Send POST request to Overpass API  
-      const response = await fetch(this.config.overpassApiUrl!, {
+      // Send POST request to Overpass API        
+      const timestamps=Date.now()
+      this.log.debug(`Overpass API  ${apiToCall}`)
+      const response = await fetch(apiToCall, {
         method: 'POST',
         body: query,
-        signal: AbortSignal.timeout(this.config.apiTimeout!)
+        signal: AbortSignal.timeout(this.config.apiTimeout!) 
       })
-
+      logger.debug(`in ${Date.now()-timestamps}ms: ${response.status} ${response.statusText}`)
       if (!response.ok) {
         return null
       }
 
-      const data = await response.json()
+      const data = await response.json() as OverpassAPIResponse
       
       if (!data.elements || data.elements.length === 0) {
         return null
       }
+      logger.debug(`Overpass API returned ${data.elements.length} elements `)
+            
+      return {data:data.elements}
 
-      // Analyze tags to determine terrain type
-      const tags = data.elements[0].tags
-      const terrainType = this.classifyFromOSMTags(tags)
-      
-      return {
-        type: terrainType,
-        confidence: 0.8
-      }
     } catch (error) {
-      this.log.debug('Overpass API error:', error)
-      return null
+      this.log.error('Overpass API error:', error)
+      if(error instanceof Error && error.name === 'TimeoutError')
+        throw error
+      else
+        return null
     }
   }
 
@@ -305,6 +338,14 @@ export class TerrainService {
    * Classify terrain from OpenStreetMap tags
    */
   private classifyFromOSMTags(tags: Record<string, string>): TerrainType {
+    // Surface type classification
+    if (tags.surface) {
+      const surface = tags.surface.toLowerCase()
+    
+      if (surface.includes('paved') || surface.includes('asphalt') || surface.includes('concrete')) return 'urban'
+      if (surface.includes('gravel') || surface.includes('dirt') || surface.includes('ground') || surface.includes('unpaved')) return 'rural'
+      if (surface.includes('sand')) return 'desert'
+    }       
     // Landuse classification
     if (tags.landuse) {
       const landuse = tags.landuse.toLowerCase()
@@ -338,6 +379,15 @@ export class TerrainService {
       if (place.includes('city') || place.includes('town')) return 'urban'
       if (place.includes('village') || place.includes('hamlet')) return 'rural'
     }
+    
+    // Highway classification
+    if (tags.highway) {
+      const highway = tags.highway.toLowerCase()  
+      if (highway.includes('motorway') || highway.includes('trunk')) return 'urban'
+      if (highway.includes('primary') || highway.includes('secondary')) return 'suburban'
+      if (highway.includes('tertiary') || highway.includes('residential')) return 'suburban'
+      if (highway.includes('unclassified') || highway.includes('service')) return 'rural'
+    } 
 
     return 'unknown'
   }
@@ -472,7 +522,7 @@ export class TerrainService {
 
     const merged: TerrainSegment[] = []
     let current = segments[0]
-
+    logger.debug(`Merging segments length=${segments.length}`)
     for (let i = 1; i < segments.length; i++) {
       if (segments[i].terrainType === current.terrainType) {
         // Merge with current segment
@@ -490,7 +540,7 @@ export class TerrainService {
       }
     }
     merged.push(current)
-
+    //logger.debug(`Merged to ${JSON.stringify(merged)} segments`)
     return merged
   }
 
@@ -593,3 +643,4 @@ export class TerrainService {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 }
+

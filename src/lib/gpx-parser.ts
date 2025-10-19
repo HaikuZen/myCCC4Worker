@@ -2,6 +2,7 @@ import { parseString } from 'xml2js'
 import { createLogger } from './logger'
 import { WeatherService } from './weather'
 import { TerrainService, TerrainAnalysis } from './terrain-service'
+import { JSONObject } from 'hono/utils/types'
 const logger = createLogger('GPXParser')
 
 interface TrackPoint {
@@ -137,11 +138,45 @@ interface GPXData {
   segments: Segment[]
 }
 
+interface TerrainSegment {
+    startIndex: number;
+    endIndex: number;
+    terrainType: string;
+    distance: number;
+    confidence: number;
+}
+
+interface TerrainResult {
+    dominantTerrain: string;
+    terrainDistribution: Record<string, number>;
+    terrainPercentages: Record<string, number>;
+    segments: TerrainSegment[];
+}
+
 /**
  * Comprehensive GPX Parser for Cycling Analytics
  * Converted to TypeScript for Cloudflare Workers
  */
 export class GPXParser {
+  getTerrain(terrainResult: TerrainResult | null | undefined): {
+    dominantTerrain: string;
+    terrainDistribution: Record<string, number>;
+    terrainPercentages: Record<string, number>;
+    segments: TerrainSegment[];
+} | undefined {
+    return terrainResult?.segments ? {
+        dominantTerrain: terrainResult.dominantTerrain,
+        terrainDistribution: terrainResult.terrainDistribution,
+        terrainPercentages: terrainResult.terrainPercentages,
+        segments: terrainResult.segments.map(seg => ({
+            startIndex: seg.startIndex,
+            endIndex: seg.endIndex,
+            terrainType: seg.terrainType,
+            distance: seg.distance,
+            confidence: seg.confidence
+        }))
+    } : undefined;
+}
   
   /**
    * Parse GPX content from text
@@ -828,7 +863,7 @@ export class GPXParser {
     let terrainAnalysis = undefined;
     
     // Check if terrain analysis is enabled
-    const terrainEnabled = terrainConfig?.enabled ?? true;
+    const terrainEnabled = terrainConfig?.enabled ?? false; // Default to false if not specified
     
     if (terrainEnabled) {
       try {
@@ -836,6 +871,9 @@ export class GPXParser {
         
         // Use configuration from database or defaults
         const terrainService = new TerrainService({
+          overpassApiUrl: terrainConfig?.overpassApiUrl,
+          cacheTtl: terrainConfig?.cacheTtl ?? 86400, // 1 day
+          maxRetries: terrainConfig?.maxRetries ?? 3,
           sampleInterval: terrainConfig?.sampleInterval ?? 30,
           enableApiCalls: terrainConfig?.enableApiCalls ?? true,
           apiTimeout: terrainConfig?.apiTimeout ?? 15000,
@@ -851,7 +889,9 @@ export class GPXParser {
       }));
       
       const terrainResult = await terrainService.analyzeRoute(routePoints);
-      
+
+      logger.debug(`Terrain result: ${JSON.stringify(terrainResult)}`);
+
       terrainAnalysis = {
         dominantTerrain: terrainResult.summary.dominantTerrain,
         terrainDistribution: terrainResult.summary.terrainDistribution,

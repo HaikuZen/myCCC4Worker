@@ -1,5 +1,5 @@
 import { createLogger } from './logger'
-import { CyclingDatabase, GlobalStatistics, RideRecord } from './cycling-database'
+import { CyclingDatabase, GlobalStatistics, GpxDataResult, RideRecord } from './cycling-database'
 import type { User, GoogleUserInfo } from './auth'
 
 /**
@@ -492,7 +492,7 @@ export class DatabaseService extends CyclingDatabase{
   /**
    * Get GPX file content by ride ID
    */
-  async getGpxData(rideId: number): Promise<string | null> {
+  async getGpxData(rideId: number): Promise<GpxDataResult | null> {
     try {
       return await super.getGpxData(rideId)
     } catch (error) {

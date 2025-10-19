@@ -11,6 +11,7 @@ All terrain analysis settings are stored in the `configuration` table with categ
 | Key                       | Type    | Default   | Description                           |
 |---------------------------|---------|-----------|---------------------------------------|
 | `terrain_enabled`         | boolean | `true`    | Enable/disable terrain analysis       |
+| 
 | `terrain_sample_interval` | number  | `30`      | Analyze every N GPS points            |
 | `terrain_api_timeout`     | number  | `15000`   | API request timeout (milliseconds)    |
 | `terrain_api_delay`       | number  | `2000`    | Delay between batches (milliseconds)  |
@@ -25,6 +26,9 @@ Configuration entries are automatically created during database initialization:
 ```sql
 INSERT OR IGNORE INTO configuration (key, value, value_type, description, category) VALUES
 ('terrain_enabled', 'true', 'boolean', 'Enable terrain analysis for rides', 'terrain'),
+('overpass_api_url', 'https://overpass-api.de/api/interpreter', 'string', 'Overpass API URL for terrain data', 'terrain'),
+('terrain_cache_ttl', '86400', 'number', 'Terrain data cache TTL in seconds', 'terrain'),
+('terrain_max_retries', '3', 'number', 'Maximum retries for terrain API calls', 'terrain'),
 ('terrain_sample_interval', '30', 'number', 'Analyze every N GPS points', 'terrain'),
 ('terrain_api_timeout', '15000', 'number', 'API request timeout in milliseconds', 'terrain'),
 ('terrain_api_delay', '2000', 'number', 'Delay between API batches in milliseconds', 'terrain'),

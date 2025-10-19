@@ -290,11 +290,13 @@ terrainService.analyzeRoute(points).then(accurateTerrain => {
 
 Multiple Overpass API instances available:
 
-| Server | URL | Location | Notes |
-|--------|-----|----------|-------|
-| **Main (France)** | `https://overpass-api.de/api/interpreter` | Europe | Most stable |
-| **Kumi (Germany)** | `https://overpass.kumi.systems/api/interpreter` | Europe | Alternative |
-| **OSM Russia** | `https://overpass.openstreetmap.ru/api/interpreter` | Russia | Fast for Asia |
+| Server              | URL                                                 | Location  | Notes                      |
+|---------------------|-----------------------------------------------------|-----------|----------------------------|
+| **Main (France)**   | `https://overpass-api.de/api/interpreter`           | Europe    | Most stable                |
+| **Kumi (Germany)**  | `https://overpass.kumi.systems/api/interpreter`     | Europe    | Alternative                |
+| **OSM Russia**      | `https://overpass.openstreetmap.ru/api/interpreter` | Russia    | Fast for Asia              |
+| **Private.Coffee**  | `https://overpass.private.coffee/api/interpreter`   |           | privacy-respecting service |
+|                     | `https://overpass-turbo.eu/`                        |           | no api                     |
 
 Configure in TerrainService:
 ```typescript
@@ -397,7 +399,10 @@ Add configuration options to database:
 ```sql
 -- Terrain analysis settings
 INSERT INTO configuration (key, value, value_type, description, category) VALUES
-('terrain_enabled', 'true', 'boolean', 'Enable terrain analysis', 'terrain'),
+('terrain_enabled', 'true', 'boolean', 'Enable terrain analysis for rides', 'terrain'),
+('overpass_api_url', 'https://overpass-api.de/api/interpreter', 'string', 'Overpass API URL for terrain data', 'terrain'),
+('terrain_cache_ttl', '86400', 'number', 'Terrain data cache TTL in seconds', 'terrain'),
+('terrain_max_retries', '3', 'number', 'Maximum retries for terrain API calls', 'terrain'),
 ('terrain_sample_interval', '30', 'number', 'Sample every N points', 'terrain'),
 ('terrain_api_timeout', '15000', 'number', 'API timeout in ms', 'terrain'),
 ('terrain_api_delay', '2000', 'number', 'Delay between batches in ms', 'terrain'),

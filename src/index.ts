@@ -8,6 +8,7 @@ import { createLogger } from './lib/logger'
 import { WeatherService } from './lib/weather'
 import { AuthService, User } from './lib/auth'
 import { EmailService } from './lib/email-service'
+import { GpxDataResult } from './lib/cycling-database'
 
 type Bindings = {
   DB: D1Database
@@ -316,9 +317,9 @@ app.post('/api/analyze', async (c) => {
     const weatherService = await createWeatherService(c.env, c.env.DB)
     
     // Load terrain configuration from database
-    const terrainConfig = await dbService.getTerrainConfig()
+    //const terrainConfig = await dbService.getTerrainConfig()
     
-    const data = await gpxParser.extractCyclingData(xmlData, 75, weatherService, terrainConfig) // Default rider weight 75kg
+    const data = await gpxParser.extractCyclingData(xmlData, 75, weatherService, null) // Default rider weight 75kg
     
     if(!skipSaveToDB) 
       try {
@@ -688,13 +689,13 @@ app.get('/api/rides/:rideId/gpx', requireAuth, async (c) => {
     }
     
     // Get ride information for filename
-    const rides = await dbService.getRecentRides(1000) // Get all to find the specific one
-    const ride = rides.find(r => r.id === rideId)
-    const filename = ride?.filename || `ride_${rideId}.gpx`
+    //const rides = await dbService.getRecentRides(1000) // Get all to find the specific one
+    //const ride = rides.find(r => r.id === rideId)
+    //const filename = ride?.filename || `ride_${rideId}.gpx`
     
-    return c.text(gpxData, 200, {
+    return c.text(gpxData.gpx_data || '', 200, {
       'Content-Type': 'application/gpx+xml',
-      'Content-Disposition': `attachment; filename="${filename}"`
+      'Content-Disposition': `attachment; filename="${gpxData.gpx_filename}"` // Use original filename
     })
   } catch (error) {
     const log = createLogger('API:GPX:Download')
@@ -705,6 +706,7 @@ app.get('/api/rides/:rideId/gpx', requireAuth, async (c) => {
 
 // Ride analysis endpoint
 app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
+  const log = createLogger('API:Ride:Analysis')
   try {
     const rideId = parseInt(c.req.param('rideId'))
     
@@ -723,28 +725,31 @@ app.get('/api/rides/:rideId/analysis', requireAuth, async (c) => {
     
     // Re-analyze the GPX data to get comprehensive analysis
     const gpxParser = new GPXParser()
-    const xmlData = await gpxParser.parseFromText(gpxData)
-    const riderWeight = await dbService.getRiderWeight()
+    const xmlData = await gpxParser.parseFromText(gpxData.gpx_data)
+    const riderWeight = await dbService.getRiderWeight() // TODO: get actual rider weight from profile if available
     
     // Initialize weather service with database config
     const weatherService = await createWeatherService(c.env, c.env.DB)
     
     // Load terrain configuration from database
-    const terrainConfig = await dbService.getTerrainConfig()
+    // const terrainConfig = await dbService.getTerrainConfig()
     
-    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService, terrainConfig)
+    const analysisData = await gpxParser.extractCyclingData(xmlData, riderWeight, weatherService, null)
     
+    log.debug(`Re-analyzed data: ${JSON.stringify(gpxData.terrain_analysis)}`)
+
+    analysisData.analysis.terrain = gpxParser.getTerrain(gpxData.terrain_analysis)
+    //analysisData.analysis.terrain = gpxData.terrain_analysis
     // Get basic ride info from database
-    const rides = await dbService.getRecentRides(1000)
-    const rideInfo = rides.find(r => r.id === rideId)
+    //const rides = await dbService.getRecentRides(1000)
+    //const rideInfo = rides.find(r => r.id === rideId)
     
     return c.json({
       rideId: rideId,
-      rideInfo: rideInfo,
+      rideInfo: gpxData.gpx_filename,
       analysis: analysisData
     })
-  } catch (error) {
-    const log = createLogger('API:Ride:Analysis')
+  } catch (error) {    
     log.error('Error getting ride analysis:', error)
     return c.json({ error: (error as Error).message }, 500)
   }
